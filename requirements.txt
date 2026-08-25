@@ -1,0 +1,6 @@
+# Nostr Mail Bridge — Python dependencies
+# Установка: pip3 install --break-system-packages --target ./deps -r requirements.txt
+# Запуск: PYTHONPATH=./deps:./src python3 -m ...
+secp256k1==0.14.0
+pycryptodome==3.23.0
+websocket-client>=1.8.0

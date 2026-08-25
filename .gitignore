@@ -5,3 +5,7 @@ data/
 *.db
 *.log
 .venv/
+deps/
+__pycache__/
+*.pyc
+.venv/
