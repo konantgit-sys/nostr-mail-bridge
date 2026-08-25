@@ -308,6 +308,40 @@ class MailBridge:
         self._stop.set()
 
 
+# ── утилиты ──────────────────────────────────────────────
+
+_BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+
+def _bech32_to_bytes(s: str) -> bytes:
+    s = s.lower()
+    pos = s.rfind("1")
+    data = s[pos + 1:]
+    vals = [_BECH32_CHARSET.find(c) for c in data]
+    acc = 0
+    bits = 0
+    res = bytearray()
+    for v in vals:
+        acc = (acc << 5) | v
+        bits += 5
+        if bits >= 8:
+            bits -= 8
+            res.append((acc >> bits) & 0xFF)
+    return bytes(res)
+
+
+def _npub_to_hex(npub: str) -> str | None:
+    """npub (bech32) → pubkey hex (32 байта). None при ошибке."""
+    try:
+        if not npub.lower().startswith("npub1"):
+            return None
+        raw = _bech32_to_bytes(npub)
+        key = raw[1:33] if len(raw) >= 33 else None
+        return key.hex() if key and len(key) == 32 else None
+    except Exception:
+        return None
+
+
 # ── CLI ──────────────────────────────────────────────────
 
 def _load_config(path: str) -> dict:

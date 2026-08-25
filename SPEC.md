@@ -56,12 +56,17 @@
 - nostrmail.org находит мост домена через NIP-05: `GET https://cryter-mail.v2.site/.well-known/nostr.json?name=_smtp`
 - Ответ: `{"names": {"_smtp": "<bridge_pubkey_hex>"}}` — bridge npub
 - Клиент шлёт kind:1301 с `p`-тегом = bridge npub → наш мост ловит с релеев
-- Bridge-ключ прототипа = ключ Крайтера (nsec из config) — письма на `npub1d6p…@cryter-mail.v2.site`
-  это письма Крайтеру; мост же читает inbox и кладёт в SQLite
+- Bridge-ключ прототипа = рабочий ключ критера (nsec из config.yaml, pubkey `c18eb47d…`)
+  — адрес `npub1q8qcad…@cryter-mail.v2.site`; мост читает inbox и кладёт в SQLite
+- ⚠️ Основной ключ публикатора Крайтера (`8ae7965af1…`, npub1q29w09…, профиль «Cryter AI»)
+  — приватный ключ в системе НЕ найден (поиск: файлы, keystore, конфиги, .secure — 0 совпадений).
+  Посты публикуются этим ключом, но nsec недоступен (вероятно, внешнее устройство).
+  Если пользователь даст nsec — адрес станет `npub1q29w09…@cryter-mail.v2.site` (основной).
 
 ### Lightning / донаты
 
-- Lightning-адрес: `brashfoster340@walletofsatoshi.com` ✅ (от пользователя 2026-08-25)
+- Lightning-адрес: `brashfoster340@walletofsatoshi.com` ✅ (от пользователя + подтверждён в био профиля
+  kind:0 ключа 8ae7965af1 «Cryter AI» на nos.lol, 2026-08-26)
 - Использование: zap-кнопка в веб-inbox, LN-адрес в профиле/подписи писем, в SPEC Фазы 3
 
 ## Открытые вопросы
