@@ -21,12 +21,14 @@ os.environ["NO_BRIDGE"] = "1"  # мост не стартуем в тестах
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app as appmod  # noqa: E402
+import mailapp.config as cfg  # noqa: E402
+import mailapp.auth as auth  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-NPUB = appmod.NPUB
-PUBKEY = appmod.PUBKEY
-PASSWORD = appmod.AUTH_PASSWORD
+NPUB = cfg.NPUB
+PUBKEY = cfg.PUBKEY
+PASSWORD = cfg.AUTH_PASSWORD
 
 
 @pytest.fixture()
@@ -62,9 +64,9 @@ def db(tmp_path):
 @pytest.fixture()
 def client(db, tmp_path, monkeypatch):
     """Чистый клиент: временная БД, чистые сессии."""
-    monkeypatch.setattr(appmod, "DB", db)
-    monkeypatch.setattr(appmod, "SESSIONS", set())
-    monkeypatch.setattr(appmod, "SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    monkeypatch.setattr(cfg, "DB", db)
+    monkeypatch.setattr(auth, "SESSIONS", set())
+    monkeypatch.setattr(auth, "SESSIONS_FILE", str(tmp_path / "sessions.json"))
     with TestClient(appmod.app) as c:
         yield c
 
@@ -77,8 +79,9 @@ def _login(client, password=PASSWORD):
 
 def test_login_wrong_password(client):
     r = _login(client, "wrong")
-    assert r.status_code == 401
+    assert r.status_code == 200  # 200+ok:false — прокси *.v2.site ломает 401 в 502
     assert r.json()["ok"] is False
+    assert r.json()["error"] == "wrong password"
 
 
 def test_login_ok_sets_cookie(client):
@@ -90,13 +93,16 @@ def test_login_ok_sets_cookie(client):
 
 def test_mails_requires_auth(client):
     r = client.get("/api/mails")
-    assert r.status_code == 401
+    assert r.status_code == 200
+    assert r.json()["ok"] is False
+    assert r.json()["error"] == "auth"
 
 
 def test_any_cookie_rejected(client):
     """РЕГРЕССИЯ v1: раньше любая cookie пускала. Теперь — только реальный токен."""
     r = client.get("/api/mails", cookies={"mail_session": "deadbeef"})
-    assert r.status_code == 401
+    assert r.status_code == 200
+    assert r.json()["ok"] is False
 
 
 def test_logout_invalidates_session(client):
@@ -105,7 +111,7 @@ def test_logout_invalidates_session(client):
     assert client.get("/api/mails", cookies={"mail_session": token}).status_code == 200
     r2 = client.post("/api/logout", cookies={"mail_session": token})
     assert r2.status_code == 200
-    assert client.get("/api/mails", cookies={"mail_session": token}).status_code == 401
+    assert client.get("/api/mails", cookies={"mail_session": token}).json()["ok"] is False
 
 
 def test_status_ok_flag(client):
@@ -126,6 +132,9 @@ def test_mails_list(client):
     assert mails[0]["is_read"] is True
     assert mails[1]["subject"] == "Привет"
     assert mails[1]["is_read"] is False
+    # алиасы полей, которые ждёт фронт (v3: баг — API отдавал from_addr, фронт ждал from)
+    assert "from" in mails[0] and mails[0]["from"] == "npub1c…@cryter-mail.v2.site"
+    assert "from_addr" not in mails[0]
 
 
 def test_mail_detail_marks_read(client):
@@ -178,7 +187,10 @@ def test_mail_delete(client):
 # ── отправка ─────────────────────────────────────────────
 
 def test_send_requires_auth(client):
-    assert client.post("/api/send", json={"to_npub": NPUB, "subject": "s", "body": "b"}).status_code == 401
+    r = client.post("/api/send", json={"to_npub": NPUB, "subject": "s", "body": "b"})
+    assert r.status_code == 200
+    assert r.json()["ok"] is False
+    assert r.json()["error"] == "auth"
 
 
 def test_send_validation(client):
@@ -222,7 +234,9 @@ def test_send_full_address(client):
 # ── outbox / nip05 ────────────────────────────────────────
 
 def test_outbox_requires_auth(client):
-    assert client.get("/api/outbox").status_code == 401
+    r = client.get("/api/outbox")
+    assert r.status_code == 200
+    assert r.json()["ok"] is False
 
 
 def test_outbox_list(client):
