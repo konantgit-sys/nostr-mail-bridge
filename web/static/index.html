@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nostr Mail — Крайтер</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- Шапка -->
+  <header class="header">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      <div class="logo-text">
+        <span class="logo-title">Nostr Mail</span>
+        <button class="logo-sub" id="mail-address" title="Скопировать адрес">—</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="ln" id="ln-badge" title="Lightning-адрес Крайтера">⚡<span id="ln-addr">—</span></span>
+      <button class="btn btn-ghost" id="btn-logout" hidden>Выйти</button>
+    </div>
+  </header>
+
+  <!-- Логин -->
+  <section class="login" id="login-view" hidden>
+    <form class="login-card" id="login-form">
+      <div class="login-icon" aria-hidden="true">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      </div>
+      <h1>Вход в почту</h1>
+      <p class="muted">Приватный inbox Крайтера</p>
+      <input type="password" id="login-pass" class="input" placeholder="Пароль" autocomplete="current-password" autofocus>
+      <button class="btn btn-primary btn-block" type="submit">Войти</button>
+      <p class="error" id="login-error" hidden></p>
+    </form>
+  </section>
+
+  <!-- Почта -->
+  <main class="main" id="main-view" hidden>
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab active" data-tab="inbox" id="tab-inbox">Входящие <span class="badge" id="inbox-count" hidden>0</span></button>
+        <button class="tab" data-tab="outbox" id="tab-outbox">Отправленные</button>
+      </div>
+      <div class="toolbar-right">
+        <div class="search" id="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="search" id="search" class="input search-input" placeholder="Поиск…" autocomplete="off">
+        </div>
+        <button class="btn btn-primary" id="btn-compose">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          Написать
+        </button>
+      </div>
+    </div>
+
+    <!-- Список -->
+    <section class="list" id="list-view">
+      <div class="empty" id="empty-inbox" hidden>
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></svg>
+        <p>Писем пока нет. Напишите Крайтеру на<br><code id="empty-addr">—</code></p>
+      </div>
+      <div class="empty" id="empty-search" hidden>
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <p>Ничего не найдено</p>
+      </div>
+      <div class="mail-list" id="mail-list"></div>
+    </section>
+
+    <!-- Письмо -->
+    <section class="detail" id="detail-view" hidden>
+      <div class="detail-top">
+        <button class="btn btn-ghost" id="btn-back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          Назад
+        </button>
+        <div class="detail-actions">
+          <button class="btn btn-ghost" id="btn-unread">Не прочитано</button>
+          <button class="btn btn-ghost btn-danger" id="btn-delete">Удалить</button>
+        </div>
+      </div>
+      <article class="mail-card" id="mail-card"></article>
+      <div class="detail-actions bottom">
+        <button class="btn btn-primary" id="btn-reply">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-7-7 18-2.5-7.5L3 11Z"/><path d="m11.5 14.5 4-4"/></svg>
+          Ответить
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Композер -->
+  <div class="modal-backdrop" id="compose-backdrop" hidden>
+    <form class="compose" id="compose-form">
+      <div class="compose-head">
+        <h2 id="compose-title">Новое письмо</h2>
+        <button type="button" class="btn-icon" id="btn-close" aria-label="Закрыть">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <input type="text" id="compose-to" class="input" placeholder="Кому: npub… или npub…@домен" autocomplete="off" spellcheck="false">
+      <input type="text" id="compose-subject" class="input" placeholder="Тема" autocomplete="off" maxlength="200">
+      <textarea id="compose-body" class="input textarea" placeholder="Текст письма…" rows="9" maxlength="20000"></textarea>
+      <div class="compose-actions">
+        <span class="compose-hint" id="compose-hint">Шифруется NIP-44 → gift wrap → релеи</span>
+        <button type="button" class="btn btn-ghost" id="btn-cancel">Отмена</button>
+        <button type="submit" class="btn btn-primary" id="btn-send">Отправить</button>
+      </div>
+      <p class="error" id="compose-error" hidden></p>
+    </form>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

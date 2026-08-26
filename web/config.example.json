@@ -1,0 +1,17 @@
+{
+  "pubkey_hex": "8ae7965af1b61347bb9900b91cfa9487e4da2400bdb063521ad0850706ff5f96",
+  "npub": "npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n",
+  "mail_domain": "cryter-mail.v2.site",
+  "mail_address": "npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@cryter-mail.v2.site",
+  "relays": [
+    "wss://nos.lol",
+    "wss://offchain.pub",
+    "wss://relay.primal.net"
+  ],
+  "db": "/home/agent/data/sites/cryter-mail/inbox.db",
+  "telegram_token": "",
+  "telegram_chat_id": "-1003797670859",
+  "lightning": "brashfoster340@walletofsatoshi.com",
+  "auth_password": "СМЕНИТЕ_ПАРОЛЬ",
+  "nsec_hex": "ВАШ_ПРИВАТНЫЙ_КЛЮЧ_HEX"
+}
