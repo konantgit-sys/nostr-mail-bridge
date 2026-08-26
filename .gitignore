@@ -1,11 +1,4 @@
 __pycache__/
 *.pyc
-data/
-.env
-*.db
-*.log
-.venv/
-deps/
-__pycache__/
-*.pyc
-.venv/
+web/config.json
+.sessions.json
