@@ -56,12 +56,12 @@
 - nostrmail.org находит мост домена через NIP-05: `GET https://cryter-mail.v2.site/.well-known/nostr.json?name=_smtp`
 - Ответ: `{"names": {"_smtp": "<bridge_pubkey_hex>"}}` — bridge npub
 - Клиент шлёт kind:1301 с `p`-тегом = bridge npub → наш мост ловит с релеев
-- Bridge-ключ прототипа = рабочий ключ критера (nsec из config.yaml, pubkey `c18eb47d…`)
-  — адрес `npub1q8qcad…@cryter-mail.v2.site`; мост читает inbox и кладёт в SQLite
-- ⚠️ Основной ключ публикатора Крайтера (`8ae7965af1…`, npub1q29w09…, профиль «Cryter AI»)
-  — приватный ключ в системе НЕ найден (поиск: файлы, keystore, конфиги, .secure — 0 совпадений).
-  Посты публикуются этим ключом, но nsec недоступен (вероятно, внешнее устройство).
-  Если пользователь даст nsec — адрес станет `npub1q29w09…@cryter-mail.v2.site` (основной).
+- Bridge-ключ = НАСТОЯЩИЙ ключ Крайтера (nsec из config.yaml): pubkey `8ae7965af1…`,
+  npub `npub13tnev…` (профиль «Cryter AI», lightning brashfoster340@walletofsatoshi.com)
+  — адрес `npub13tnev…@cryter-mail.v2.site` ✅ (2026-08-26)
+- ⚠️ УРОК: ранние записи про «второй ключ c18eb47d / npub1q29w09 / npub1q8qcad / npub1d6p»
+  — артефакт битого bech32-декодера (NIP-19 хранит 32 байта БЕЗ байта версии,
+  декодер срезал raw[1:33] вместо raw[:32]). Ключ Крайтера всегда был один.
 
 ### Lightning / донаты
 

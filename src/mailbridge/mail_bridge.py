@@ -313,21 +313,33 @@ class MailBridge:
 _BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
+def _convertbits(data, frombits, tobits, pad=True):
+    """BIP-173 convertbits — корректная 5→8 бит конвертация."""
+    acc = 0
+    bits = 0
+    ret = []
+    maxv = (1 << tobits) - 1
+    max_acc = (1 << (frombits + tobits - 1)) - 1
+    for value in data:
+        if value < 0 or (value >> frombits):
+            return None
+        acc = ((acc << frombits) | value) & max_acc
+        bits += frombits
+        while bits >= tobits:
+            bits -= tobits
+            ret.append((acc >> bits) & maxv)
+    if pad:
+        if bits:
+            ret.append((acc << (tobits - bits)) & maxv)
+    return ret
+
+
 def _bech32_to_bytes(s: str) -> bytes:
     s = s.lower()
     pos = s.rfind("1")
     data = s[pos + 1:]
     vals = [_BECH32_CHARSET.find(c) for c in data]
-    acc = 0
-    bits = 0
-    res = bytearray()
-    for v in vals:
-        acc = (acc << 5) | v
-        bits += 5
-        if bits >= 8:
-            bits -= 8
-            res.append((acc >> bits) & 0xFF)
-    return bytes(res)
+    return bytes(_convertbits(vals, 5, 8) or b"")
 
 
 def _npub_to_hex(npub: str) -> str | None:
@@ -336,7 +348,8 @@ def _npub_to_hex(npub: str) -> str | None:
         if not npub.lower().startswith("npub1"):
             return None
         raw = _bech32_to_bytes(npub)
-        key = raw[1:33] if len(raw) >= 33 else None
+        # NIP-19: bech32-данные = ровно 32 байта ключа (без байта версии, в отличие от BIP-173)
+        key = raw[:32] if len(raw) >= 32 else None
         return key.hex() if key and len(key) == 32 else None
     except Exception:
         return None
