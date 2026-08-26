@@ -26,12 +26,36 @@ Mail.showMain = function () {
 
 Mail.loadStatus = async function () {
   const s = await Mail.api("/api/status");
-  Mail.$("mail-address").textContent = s.address || "—";
+  const accs = s.accounts || [];
+  const sel = Mail.$("account-switch");
+  if (accs.length > 1) {
+    sel.hidden = false;
+    sel.innerHTML = accs.map((a) => `<option value="${Mail.esc(a.pubkey)}">${Mail.esc(a.label)}</option>`).join("");
+    const saved = localStorage.getItem("mail_owner");
+    Mail.STATE.owner = accs.some((a) => a.pubkey === saved) ? saved : (s.default_owner || accs[0].pubkey);
+    sel.value = Mail.STATE.owner;
+  } else if (accs.length === 1) {
+    Mail.STATE.owner = accs[0].pubkey;
+  } else {
+    Mail.STATE.owner = "";
+  }
+  const cur = accs.find((a) => a.pubkey === Mail.STATE.owner) || accs[0] || {};
+  Mail.$("mail-address").textContent = cur.address || s.address || "—";
   Mail.$("ln-addr").textContent = s.lightning || "—";
-  Mail.$("empty-addr").textContent = s.address || "";
+  Mail.$("empty-addr").textContent = cur.address || "";
   Mail.$("btn-logout").hidden = !s.ok;
   if (s.ok) Mail.showMain(); else Mail.showLogin();
   return s;
+};
+
+Mail.setAccount = async function (owner) {
+  Mail.STATE.owner = owner;
+  localStorage.setItem("mail_owner", owner);
+  const s = await Mail.api("/api/status");
+  const cur = (s.accounts || []).find((a) => a.pubkey === owner) || {};
+  Mail.$("mail-address").textContent = cur.address || s.address || "—";
+  Mail.$("empty-addr").textContent = cur.address || "";
+  await Mail.loadMails();
 };
 
 Mail.copyAddress = async function () {

@@ -42,18 +42,18 @@ def db(tmp_path):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             message_id TEXT, sender_pubkey TEXT, from_addr TEXT, to_addr TEXT,
             subject TEXT, body TEXT, received_at INTEGER, is_read INTEGER DEFAULT 0,
-            raw_event TEXT
+            raw_event TEXT, owner TEXT DEFAULT ''
         );
         CREATE TABLE outbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             message_id TEXT, recipient_pubkey TEXT, subject TEXT, body TEXT,
-            sent_at INTEGER, raw_event TEXT
+            sent_at INTEGER, raw_event TEXT, owner TEXT DEFAULT ''
         );
-        INSERT INTO inbox (message_id, sender_pubkey, from_addr, to_addr, subject, body, received_at, is_read)
-        VALUES ('<m1@test>', 'aaa', 'npub1a…@cryter-mail.v2.site', 'npub1b…@cryter-mail.v2.site', 'Привет', 'Тело 1', 1000, 0),
-               ('<m2@test>', 'bbb', 'npub1c…@cryter-mail.v2.site', 'npub1b…@cryter-mail.v2.site', 'Срочно', 'Тело 2', 2000, 1);
-        INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at)
-        VALUES ('<o1@test>', 'ccc', 'Отправленное', 'Тело', 1500);
+        INSERT INTO inbox (message_id, sender_pubkey, from_addr, to_addr, subject, body, received_at, is_read, owner)
+        VALUES ('<m1@test>', 'aaa', 'npub1a…@cryter-mail.v2.site', 'npub1b…@cryter-mail.v2.site', 'Привет', 'Тело 1', 1000, 0, 'OWNER_A'),
+               ('<m2@test>', 'bbb', 'npub1c…@cryter-mail.v2.site', 'npub1b…@cryter-mail.v2.site', 'Срочно', 'Тело 2', 2000, 1, 'OWNER_A');
+        INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at, owner)
+        VALUES ('<o1@test>', 'ccc', 'Отправленное', 'Тело', 1500, 'OWNER_A');
         """
     )
     conn.commit()
@@ -65,6 +65,8 @@ def db(tmp_path):
 def client(db, tmp_path, monkeypatch):
     """Чистый клиент: временная БД, чистые сессии."""
     monkeypatch.setattr(cfg, "DB", db)
+    monkeypatch.setattr(cfg, "DEFAULT_OWNER", "OWNER_A")
+    monkeypatch.setattr(cfg, "OWNER_INDEX", {"OWNER_A": {"nsec_hex": cfg.NSEC, "pubkey_hex": "OWNER_A", "address": "a@x", "label": "A"}})
     monkeypatch.setattr(auth, "SESSIONS", set())
     monkeypatch.setattr(auth, "SESSIONS_FILE", str(tmp_path / "sessions.json"))
     with TestClient(appmod.app) as c:

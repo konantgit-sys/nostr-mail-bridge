@@ -3,7 +3,7 @@
 
 Mail.loadMails = async function () {
   try {
-    const d = await Mail.api("/api/mails");
+    const d = await Mail.api("/api/mails?owner=" + encodeURIComponent(Mail.STATE.owner || ""));
     Mail.STATE.mails = d.mails || [];
   } catch (_) { return; }
   if (Mail.STATE.tab === "inbox") Mail.renderList();
@@ -11,7 +11,7 @@ Mail.loadMails = async function () {
 
 Mail.loadOutbox = async function () {
   try {
-    const d = await Mail.api("/api/outbox");
+    const d = await Mail.api("/api/outbox?owner=" + encodeURIComponent(Mail.STATE.owner || ""));
     Mail.STATE.outbox = d.outbox || [];
   } catch (_) { return; }
   if (Mail.STATE.tab === "outbox") Mail.renderList();

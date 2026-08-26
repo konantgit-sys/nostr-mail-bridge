@@ -26,3 +26,8 @@ SESSIONS_FILE = os.path.join(BASE, ".sessions.json")
 SESSIONS_TTL = 86400 * 7  # 7 дней
 
 STATIC_DIR = os.path.join(BASE, "static")
+
+# ── мульти-ящик: владельцы (Крайтер, V2Bot, …) ──
+OWNERS: list[dict] = CFG.get("owners", [])
+OWNER_INDEX: dict[str, dict] = {o["pubkey_hex"]: o for o in OWNERS}
+DEFAULT_OWNER: str = OWNERS[0]["pubkey_hex"] if OWNERS else PUBKEY

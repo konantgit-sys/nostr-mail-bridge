@@ -1,7 +1,7 @@
 /* Mail.main — инициализация: STATE, события, старт. */
 "use strict";
 
-Mail.STATE = { mails: [], outbox: [], tab: "inbox", current: null, query: "", deleteArm: 0 };
+Mail.STATE = { mails: [], outbox: [], tab: "inbox", current: null, query: "", deleteArm: 0, owner: "" };
 
 /* ── события ─────────────────────────────────────────── */
 Mail.$("login-form").addEventListener("submit", async (ev) => {
@@ -25,6 +25,7 @@ Mail.$("btn-logout").addEventListener("click", async () => {
 });
 
 Mail.$("btn-compose").addEventListener("click", () => Mail.openComposer("Новое письмо"));
+Mail.$("account-switch").addEventListener("change", (ev) => Mail.setAccount(ev.target.value));
 Mail.$("btn-close").addEventListener("click", Mail.closeComposer);
 Mail.$("btn-cancel").addEventListener("click", Mail.closeComposer);
 Mail.$("compose-backdrop").addEventListener("click", (ev) => {

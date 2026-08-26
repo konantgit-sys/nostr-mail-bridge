@@ -45,7 +45,7 @@ Mail.sendMail = async function (ev) {
   try {
     const r = await Mail.api("/api/send", {
       method: "POST",
-      body: JSON.stringify({ to_npub: to, subject, body, in_reply_to: Mail.$("compose-form").dataset.replyTo || "" }),
+      body: JSON.stringify({ to_npub: to, subject, body, in_reply_to: Mail.$("compose-form").dataset.replyTo || "", owner: Mail.STATE.owner || "" }),
     });
     if (!r.ok) throw new Error(r.error || "ошибка");
     Mail.closeComposer();

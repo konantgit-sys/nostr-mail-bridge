@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS inbox (
     body TEXT,
     received_at INTEGER,
     is_read INTEGER DEFAULT 0,
-    raw_event TEXT
+    raw_event TEXT,
+    owner TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +61,8 @@ CREATE TABLE IF NOT EXISTS outbox (
     subject TEXT,
     body TEXT,
     sent_at INTEGER,
-    raw_event TEXT
+    raw_event TEXT,
+    owner TEXT DEFAULT ''
 );
 """
 
@@ -74,9 +76,13 @@ class MailBridge:
         telegram_token: str = "",
         telegram_chat_id: str = "",
         logger: logging.Logger | None = None,
+        owner: str | None = None,
+        label: str = "",
     ):
         self.privkey = privkey_hex
         self.pubkey = pubkey_from_privkey(privkey_hex)
+        self.owner = owner or self.pubkey  # владелец ящика (hex) — для мульти-ящика
+        self.label = label or "Крайтер"   # метка в уведомлениях
         self.relays = relays or list(DEFAULT_RELAYS)
         self.db_path = db_path
         self.telegram_token = telegram_token
@@ -92,6 +98,12 @@ class MailBridge:
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(SCHEMA)
+            # миграция старых БД (до мульти-ящика): добавляем owner
+            for tbl in ("inbox", "outbox"):
+                cols = [r[1] for r in conn.execute(f"PRAGMA table_info({tbl})").fetchall()]
+                if "owner" not in cols:
+                    conn.execute(f"ALTER TABLE {tbl} ADD COLUMN owner TEXT DEFAULT ''")
+            conn.commit()
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
@@ -154,8 +166,8 @@ class MailBridge:
             conn.execute(
                 """INSERT OR IGNORE INTO inbox
                    (message_id, sender_pubkey, from_addr, to_addr, subject, body,
-                    received_at, is_read, raw_event)
-                   VALUES (?,?,?,?,?,?,?,0,?)""",
+                    received_at, is_read, raw_event, owner)
+                   VALUES (?,?,?,?,?,?,?,0,?,?)""",
                 (
                     message_id,
                     sender_pubkey,
@@ -165,6 +177,7 @@ class MailBridge:
                     parsed["body"],
                     int(time.time()),
                     json.dumps(raw_event, ensure_ascii=False),
+                    self.owner,
                 ),
             )
             inserted = conn.total_changes
@@ -172,7 +185,7 @@ class MailBridge:
         if inserted:
             self._log.info("📮 письмо принято: %s — %s", parsed["from"], parsed["subject"])
             self.notify_telegram(
-                f"📮 Новое письмо Крайтеру\nОт: {parsed['from']}\n"
+                f"📮 Новое письмо [{self.label}]\nОт: {parsed['from']}\n"
                 f"Тема: {parsed['subject']}\n\n{parsed['body'][:300]}"
             )
             return True
@@ -202,8 +215,8 @@ class MailBridge:
             self.publish(gw)
             with self._connect() as conn:
                 conn.execute(
-                    "INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at, raw_event) VALUES (?,?,?,?,?,?)",
-                    (parse_mail(mail_text)["message_id"], to_pubkey_hex, subject, body, int(time.time()), json.dumps(gw, ensure_ascii=False)),
+                    "INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at, raw_event, owner) VALUES (?,?,?,?,?,?,?)",
+                    (parse_mail(mail_text)["message_id"], to_pubkey_hex, subject, body, int(time.time()), json.dumps(gw, ensure_ascii=False), self.owner),
                 )
         return gw
 

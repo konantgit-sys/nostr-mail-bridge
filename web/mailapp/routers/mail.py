@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .. import config as cfg
-from ..config import MAIL_ADDR, NPUB, PUBKEY, RELAYS, LIGHTNING, DOMAIN
+from ..config import MAIL_ADDR, NPUB, PUBKEY, RELAYS, LIGHTNING, DOMAIN, OWNERS, OWNER_INDEX, DEFAULT_OWNER
 from ..db import connect, execute, query
 from ..auth import _authed, auth_error, login as do_login, logout as do_logout
 from .. import bridge as bridge_mod
@@ -32,6 +32,11 @@ def status(session: str | None = Cookie(default=None, alias="mail_session")):
         "domain": DOMAIN,
         "relays": RELAYS,
         "lightning": LIGHTNING,
+        "accounts": [
+            {"pubkey": o["pubkey_hex"], "npub": o["npub"], "address": o["address"], "label": o["label"]}
+            for o in OWNERS
+        ],
+        "default_owner": DEFAULT_OWNER,
     }
 
 
@@ -53,13 +58,15 @@ def logout(response: Response, session: str | None = Cookie(default=None, alias=
 
 # ── входящие ────────────────────────────────────────────
 @router.get("/api/mails")
-def mails(session: str | None = Cookie(default=None, alias="mail_session")):
+def mails(owner: str = "", session: str | None = Cookie(default=None, alias="mail_session")):
     if not _authed(session):
         return auth_error()
+    own = owner or cfg.DEFAULT_OWNER
     rows = query(
         cfg.DB,
         "SELECT id, message_id, from_addr, subject, body, received_at, is_read "
-        "FROM inbox ORDER BY received_at DESC LIMIT 200",
+        "FROM inbox WHERE owner=? ORDER BY received_at DESC LIMIT 200",
+        (own,),
     )
     for r in rows:
         r["is_read"] = bool(r["is_read"])
@@ -114,6 +121,7 @@ class SendBody(BaseModel):
     subject: str
     body: str
     in_reply_to: str = ""
+    owner: str = ""
 
 
 def _parse_recipient(to_npub: str) -> str | None:
@@ -154,17 +162,22 @@ def send_mail_api(body: SendBody, session: str | None = Cookie(default=None, ali
         from mailbridge.mail_message import build_mail, parse_mail, MAIL_KIND  # noqa: F401
         
 
-        mail_text = build_mail(MAIL_ADDR, to_npub, subject, mail_body,
+        own = body.owner or cfg.DEFAULT_OWNER
+        owner_info = cfg.OWNER_INDEX.get(own)
+        if not owner_info:
+            return JSONResponse({"ok": False, "error": "unknown owner"}, status_code=400)
+
+        mail_text = build_mail(owner_info["address"], to_npub, subject, mail_body,
                                in_reply_to=body.in_reply_to or None)
-        gw = wrap_mail(cfg.NSEC, to_pub, MAIL_KIND, mail_text, [["p", to_pub]])
-        br = bridge_mod.get_bridge()
+        gw = wrap_mail(owner_info["nsec_hex"], to_pub, MAIL_KIND, mail_text, [["p", to_pub]])
+        br = bridge_mod.get_bridge(own)
         accepted = br.publish(gw) if br else []
         with connect(cfg.DB) as conn:
             conn.execute(
-                "INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at, raw_event) "
-                "VALUES (?,?,?,?,?,?)",
+                "INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at, raw_event, owner) "
+                "VALUES (?,?,?,?,?,?,?)",
                 (parse_mail(mail_text)["message_id"], to_pub, subject, mail_body,
-                 int(time.time()), json.dumps(gw, ensure_ascii=False)),
+                 int(time.time()), json.dumps(gw, ensure_ascii=False), own),
             )
         return {"ok": True, "published": len(accepted), "event_id": gw["id"][:16]}
     except Exception as e:
@@ -172,13 +185,15 @@ def send_mail_api(body: SendBody, session: str | None = Cookie(default=None, ali
 
 
 @router.get("/api/outbox")
-def outbox(session: str | None = Cookie(default=None, alias="mail_session")):
+def outbox(owner: str = "", session: str | None = Cookie(default=None, alias="mail_session")):
     if not _authed(session):
         return auth_error()
+    own = owner or cfg.DEFAULT_OWNER
     rows = query(
         cfg.DB,
         "SELECT id, message_id, recipient_pubkey, subject, body, sent_at FROM outbox "
-        "ORDER BY sent_at DESC LIMIT 100",
+        "WHERE owner=? ORDER BY sent_at DESC LIMIT 100",
+        (own,),
     )
     for r in rows:
         r["to"] = r.pop("recipient_pubkey")
