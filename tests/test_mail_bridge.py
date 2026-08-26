@@ -201,3 +201,47 @@ if __name__ == "__main__":
             traceback.print_exc()
     print(f"\n{passed}/{len(tests)} тестов прошло")
     sys.exit(0 if passed == len(tests) else 1)
+
+
+def test_ingest_saves_attachments(tmp_path):
+    """Мост при приёме multipart-письма сохраняет вложения в колонку attachments."""
+    import base64
+    import json as _json
+    from mailbridge.mail_message import build_mail, parse_mail
+    from mailbridge.mail_bridge import MailBridge, _ensure_inbox_attachments
+
+    db = str(tmp_path / "inbox.db")
+    b = MailBridge(privkey_hex="11" * 32, relays=[], db_path=db, owner="0a" * 32, label="T")
+    _ensure_inbox_attachments(db)
+
+    att = {"filename": "doc.pdf", "mime": "application/pdf", "data_base64": base64.b64encode(b"%PDF-x").decode()}
+    mail = build_mail("a@x", "b@x", "С вложением", "Текст", attachments=[att])
+    ok = b._ingest_mail(mail, "0b" * 32, {"id": "1"})
+    assert ok is True
+
+    import sqlite3
+    with sqlite3.connect(db) as c:
+        c.row_factory = sqlite3.Row
+        row = c.execute("SELECT body, attachments FROM inbox LIMIT 1").fetchone()
+    assert row["body"].strip() == "Текст"
+    atts = _json.loads(row["attachments"])
+    assert len(atts) == 1
+    assert atts[0]["filename"] == "doc.pdf"
+    assert base64.b64decode(atts[0]["data_base64"]) == b"%PDF-x"
+
+
+def test_ingest_inbox_quota(tmp_path):
+    """Квота ящика: при max_inbox=2 третье письмо отклоняется."""
+    from mailbridge.mail_message import build_mail
+    from mailbridge.mail_bridge import MailBridge
+
+    db = str(tmp_path / "inbox.db")
+    b = MailBridge(privkey_hex="11" * 32, relays=[], db_path=db, owner="0a" * 32, label="Q", max_inbox=2)
+    for i in range(3):
+        m = build_mail(f"a{i}@x", "b@x", f"Письмо {i}", f"Тело {i}")
+        ok = b._ingest_mail(m, "0b" * 32, {"id": str(i)})
+        assert ok is (i < 2), f"письмо {i}: ожидали {i < 2}"
+    import sqlite3
+    with sqlite3.connect(db) as c:
+        n = c.execute("SELECT COUNT(*) FROM inbox").fetchone()[0]
+    assert n == 2

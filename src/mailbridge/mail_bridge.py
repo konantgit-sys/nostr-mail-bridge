@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS inbox (
     received_at INTEGER,
     is_read INTEGER DEFAULT 0,
     raw_event TEXT,
+    attachments TEXT DEFAULT '[]',
     owner TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS outbox (
@@ -67,6 +68,19 @@ CREATE TABLE IF NOT EXISTS outbox (
 """
 
 
+def _ensure_inbox_attachments(db_path: str):
+    """Добавляет колонку attachments в inbox (если её нет) — миграция."""
+    import sqlite3 as _s
+    try:
+        with _s.connect(db_path, timeout=15) as c:
+            cols = [r[1] for r in c.execute("PRAGMA table_info(inbox)").fetchall()]
+            if "attachments" not in cols:
+                c.execute("ALTER TABLE inbox ADD COLUMN attachments TEXT DEFAULT '[]'")
+                c.commit()
+    except Exception:
+        pass
+
+
 class MailBridge:
     def __init__(
         self,
@@ -78,11 +92,13 @@ class MailBridge:
         logger: logging.Logger | None = None,
         owner: str | None = None,
         label: str = "",
+        max_inbox: int = 500,
     ):
         self.privkey = privkey_hex
         self.pubkey = pubkey_from_privkey(privkey_hex)
         self.owner = owner or self.pubkey  # владелец ящика (hex) — для мульти-ящика
         self.label = label or "Крайтер"   # метка в уведомлениях
+        self.max_inbox = max_inbox        # квота ящика (писем)
         self.relays = relays or list(DEFAULT_RELAYS)
         self.db_path = db_path
         self.telegram_token = telegram_token
@@ -104,6 +120,7 @@ class MailBridge:
                 if "owner" not in cols:
                     conn.execute(f"ALTER TABLE {tbl} ADD COLUMN owner TEXT DEFAULT ''")
             conn.commit()
+        _ensure_inbox_attachments(self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
@@ -162,12 +179,24 @@ class MailBridge:
 
         message_id = parsed["message_id"] or f"<{uuid.uuid4().hex}@cryter-mail.v2.site>"
 
+        attachments_json = json.dumps(parsed.get("attachments", []), ensure_ascii=False)
+
+        # квота ящика: не копим сверх лимита
+        with self._connect() as conn:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM inbox WHERE owner=?", (self.owner,)
+            ).fetchone()[0]
+        if cnt >= self.max_inbox:
+            self._log.warning("⚠️ ящик %s полон (%s/%s) — письмо отклонено", self.label, cnt, self.max_inbox)
+            self.notify_telegram(f"⚠️ Ящик [{self.label}] полон ({cnt}/{self.max_inbox}) — письмо «{parsed['subject'][:60]}» не сохранено")
+            return False
+
         with self._connect() as conn:
             conn.execute(
                 """INSERT OR IGNORE INTO inbox
                    (message_id, sender_pubkey, from_addr, to_addr, subject, body,
-                    received_at, is_read, raw_event, owner)
-                   VALUES (?,?,?,?,?,?,?,0,?,?)""",
+                    received_at, is_read, raw_event, attachments, owner)
+                   VALUES (?,?,?,?,?,?,?,0,?,?,?)""",
                 (
                     message_id,
                     sender_pubkey,
@@ -177,6 +206,7 @@ class MailBridge:
                     parsed["body"],
                     int(time.time()),
                     json.dumps(raw_event, ensure_ascii=False),
+                    attachments_json,
                     self.owner,
                 ),
             )
