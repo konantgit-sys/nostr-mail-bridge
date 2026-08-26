@@ -22,6 +22,7 @@ def init_bridge():
     with _lock:
         if _bridge is not None or os.environ.get("NO_BRIDGE") == "1":
             return
+        _setup_logging()
         sys.path.insert(0, os.path.join(BASE, "..", "..", "projects", "nostr-mail-bridge", "src"))
         from mailbridge.mail_bridge import MailBridge  # local import: тяжёлый
 
@@ -35,6 +36,21 @@ def init_bridge():
         _bridge = b
         t = threading.Thread(target=b.start, daemon=True)
         t.start()
+
+
+def _setup_logging():
+    """Логи моста в веб-режиме: mailbridge → INFO → stdout (backend.log).
+    Раньше basicConfig был только в CLI main() — в веб-режиме логи терялись."""
+    import logging
+
+    logger = logging.getLogger("mailbridge")
+    if logger.handlers:  # уже настроен
+        return
+    logger.setLevel(logging.INFO)
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(h)
+    logger.propagate = False
 
 
 def get_bridge():

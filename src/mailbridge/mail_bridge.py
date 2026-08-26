@@ -239,9 +239,10 @@ class MailBridge:
 
     def notify_telegram(self, text: str):
         if not self.telegram_token or not self.telegram_chat_id:
+            self._log.warning("telegram notify: токен/чат не настроены, пропуск")
             return
         try:
-            requests.post(
+            r = requests.post(
                 f"https://api.telegram.org/bot{self.telegram_token}/sendMessage",
                 json={
                     "chat_id": self.telegram_chat_id,
@@ -250,6 +251,10 @@ class MailBridge:
                 },
                 timeout=10,
             )
+            if r.status_code == 200 and r.json().get("ok"):
+                self._log.info("telegram notify ok (%s)", r.json()["result"]["message_id"])
+            else:
+                self._log.warning("telegram notify: api ответил %s", r.text[:120])
         except Exception as e:
             self._log.warning("telegram notify failed: %s", e)
 
