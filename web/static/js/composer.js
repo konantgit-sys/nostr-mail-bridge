@@ -85,7 +85,7 @@ Mail.sendMail = async function (ev) {
   btn.textContent = "Отправка…";
   err.hidden = true;
   try {
-    const attachments = Mail.STATE.attach.map((a) => ({ filename: a.name, mime: a.mime, data_base64: a.b64 }));
+    const attachments = (Mail.STATE.attach || []).map((a) => ({ filename: a.name, mime: a.mime, data_base64: a.b64 }));
     const r = await Mail.api("/api/send", {
       method: "POST",
       body: JSON.stringify({ to_npub: to, subject, body, in_reply_to: Mail.$("compose-form").dataset.replyTo || "", owner: Mail.STATE.owner || "", attachments }),

@@ -1,7 +1,7 @@
 /* Mail.main — инициализация: STATE, события, старт. */
 "use strict";
 
-Mail.STATE = { mails: [], outbox: [], tab: "inbox", current: null, query: "", deleteArm: 0, owner: "" };
+Mail.STATE = { mails: [], outbox: [], tab: "inbox", current: null, query: "", deleteArm: 0, owner: "", attach: [] };
 
 /* ── события ─────────────────────────────────────────── */
 Mail.$("login-form").addEventListener("submit", async (ev) => {
