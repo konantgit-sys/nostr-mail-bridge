@@ -67,12 +67,16 @@ Mail.renderList = function () {
     el.style.transitionDelay = Math.min(i * 45, 400) + "ms";
     const who = isOutbox ? (m.to || "—") : (m.from || "—");
     const when = isOutbox ? m.sent_at : m.received_at;
+    const av = Mail.avatarOf(who);
     el.innerHTML =
-      `<div class="mail-item-top">
-         <span class="mail-item-from">${Mail.esc(Mail.shortNpub(who))}${isUnread ? '<span class="unread-dot" aria-hidden="true"></span>' : ""}</span>
-         <span class="mail-item-date">${Mail.fmtAgo(when)}</span>
-       </div>
-       <div class="mail-item-subject">${Mail.esc(m.subject || "(без темы)")}</div>`;
+      `<div class="avatar" style="background:${av.bg}" aria-hidden="true">${av.ch}</div>
+       <div class="mail-item-main">
+         <div class="mail-item-top">
+           <span class="mail-item-from">${Mail.esc(Mail.shortNpub(who))}${isUnread ? '<span class="unread-dot" aria-hidden="true"></span>' : ""}</span>
+           <span class="mail-item-date">${Mail.fmtAgo(when)}</span>
+         </div>
+         <div class="mail-item-subject">${Mail.esc(m.subject || "(без темы)")}</div>
+       </div>`;
     el.addEventListener("click", () => Mail.openMail(m.id, isOutbox));
     frag.appendChild(el);
   });

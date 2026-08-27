@@ -10,7 +10,7 @@ import os
 import sys
 import threading
 
-from .config import BASE, CFG, DB, OWNERS, RELAYS
+from .config import BASE, CFG, DB, OWNERS, RELAYS, LIMITS
 
 _bridges: dict[str, object] = {}
 _lock = threading.Lock()
@@ -30,14 +30,18 @@ def init_bridge():
         telegram_chat_id = CFG.get("telegram_chat_id", "")
 
         for o in OWNERS:
+            nsec = _nsec_for(o)
+            if not nsec:
+                continue
             b = MailBridge(
-                privkey_hex=o["nsec_hex"],
+                privkey_hex=nsec,
                 relays=RELAYS,
                 db_path=DB,
                 telegram_token=telegram_token,
                 telegram_chat_id=telegram_chat_id,
                 owner=o["pubkey_hex"],
                 label=o["label"],
+                max_inbox=LIMITS["max_mails_per_user"],
             )
             _bridges[o["pubkey_hex"]] = b
             t = threading.Thread(target=b.start, daemon=True)
@@ -51,6 +55,54 @@ def init_bridge():
                 conn.commit()
         except Exception:
             pass
+
+
+def _nsec_for(o: dict) -> str | None:
+    """Приватный ключ владельца: из mail_keys (зашифрованное хранилище) → fallback config."""
+    try:
+        from .auth import get_mail_key
+        k = get_mail_key(o["pubkey_hex"])
+        if k:
+            return k
+    except Exception:
+        pass
+    return o.get("nsec_hex") or None
+
+
+def add_owner(o: dict) -> bool:
+    """Динамическая регистрация владельца: мост в новом потоке + cfg.
+
+    Вызывается при регистрации нового ящика (POST /api/register).
+    В NO_BRIDGE (тесты) — только регистрация в cfg, без потока.
+    """
+    global _bridges
+    with _lock:
+        from . import config as cfg
+        if o["pubkey_hex"] in _bridges:
+            return False
+        if o["pubkey_hex"] not in cfg.OWNER_INDEX:
+            cfg.OWNERS.append(o)
+            cfg.OWNER_INDEX[o["pubkey_hex"]] = o
+        if os.environ.get("NO_BRIDGE") == "1":
+            _bridges[o["pubkey_hex"]] = None
+            return True
+        from mailbridge.mail_bridge import MailBridge
+        nsec = _nsec_for(o)
+        if not nsec:
+            return False
+        b = MailBridge(
+            privkey_hex=nsec,
+            relays=RELAYS,
+            db_path=DB,
+            telegram_token=CFG.get("telegram_token", ""),
+            telegram_chat_id=CFG.get("telegram_chat_id", ""),
+            owner=o["pubkey_hex"],
+            label=o["label"],
+            max_inbox=LIMITS["max_mails_per_user"],
+        )
+        _bridges[o["pubkey_hex"]] = b
+        threading.Thread(target=b.start, daemon=True).start()
+        return True
 
 
 def get_bridge(owner: str | None = None):

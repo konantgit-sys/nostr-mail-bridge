@@ -47,8 +47,27 @@ def create_app() -> FastAPI:
     # двойное сжатие обрезает поток (проверено 2026-08-26).
     app.add_middleware(CacheControlMiddleware)
 
+    # CORS для статических дашбордов (cryter-dash.v2.site и dev-поддомены)
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://cryter-dash.v2.site",
+            "https://dev-cryter-dash.v2.site",
+            "https://snin-dashboard.v2.site",
+            "https://dev-snin-dashboard.v2.site",
+        ],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.on_event("startup")
     def _startup():
+        from .auth import ensure_seed_accounts, sync_owners_from_accounts
+        from . import config as _cfg
+        ensure_seed_accounts(_cfg.ACCOUNTS_FILE)
+        sync_owners_from_accounts()  # все аккаунты → владельцы моста (после рестарта)
         init_bridge()
 
     # статика (кэш заголовками Cache-Control, см. middleware)

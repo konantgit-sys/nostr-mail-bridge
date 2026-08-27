@@ -1,19 +1,27 @@
 /* Mail.api — транспорт: fetch с авторизацией, views, статус, авто-обновление. */
 "use strict";
 
+Mail.STATE = Mail.STATE || {};
+Mail.STATE.token = localStorage.getItem("nm_token") || "";
+
 Mail.api = async function (path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (Mail.STATE.token) headers["Authorization"] = "Bearer " + Mail.STATE.token;
+  const res = await fetch(path, { ...opts, headers });
   let data = {};
   try { data = await res.json(); } catch (_) { /* 204/empty */ }
-  if (res.status === 401 || data.error === "auth") { Mail.showLogin(); throw new Error("auth"); }
+  if (res.status === 401 || data.error === "auth") {
+    Mail.STATE.token = "";
+    localStorage.removeItem("nm_token");
+    Mail.showLogin();
+    throw new Error("auth");
+  }
   return data;
 };
 
 Mail.showLogin = function () {
   Mail.$("login-view").hidden = false;
+  Mail.$("register-view").hidden = true;
   Mail.$("main-view").hidden = true;
   Mail.stopRefresh();
 };
@@ -25,10 +33,18 @@ Mail.showMain = function () {
 };
 
 Mail.loadStatus = async function () {
+  // БЕЗ введённого пароля (localStorage-токена) не заходим в main —
+  // прокси v2.site подмешивает свою cookie, и без этой проверки
+  // браузер «входит без пароля» в чужой ящик (проверено 2026-08-26).
+  if (!Mail.STATE.token) {
+    Mail.showLogin();
+    return;
+  }
   const s = await Mail.api("/api/status");
   const accs = s.accounts || [];
   const sel = Mail.$("account-switch");
-  if (accs.length > 1) {
+  const isAdmin = (s.me || {}).role === "admin";
+  if (isAdmin && accs.length > 1) {
     sel.hidden = false;
     sel.innerHTML = accs.map((a) => `<option value="${Mail.esc(a.pubkey)}">${Mail.esc(a.label)}</option>`).join("");
     const saved = localStorage.getItem("mail_owner");

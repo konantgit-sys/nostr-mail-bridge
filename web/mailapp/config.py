@@ -31,3 +31,16 @@ STATIC_DIR = os.path.join(BASE, "static")
 OWNERS: list[dict] = CFG.get("owners", [])
 OWNER_INDEX: dict[str, dict] = {o["pubkey_hex"]: o for o in OWNERS}
 DEFAULT_OWNER: str = OWNERS[0]["pubkey_hex"] if OWNERS else PUBKEY
+
+ACCOUNTS_FILE: str = "/home/agent/data/.secure/mail_accounts.json"  # пароли сид-аккаунтов (0o600)
+
+# ── квоты (на пользователя) ─────────────────────────────
+_LIMITS = CFG.get("limits", {})
+LIMITS = {
+    "max_mails_per_user": int(_LIMITS.get("max_mails_per_user", 500)),        # писем в ящике
+    "max_send_per_day": int(_LIMITS.get("max_send_per_day", 100)),            # отправок в сутки
+    "max_attachment_size_mb": int(_LIMITS.get("max_attachment_size_mb", 5)),  # файл, МБ
+    "max_attachments_per_mail": int(_LIMITS.get("max_attachments_per_mail", 5)),
+    "max_mail_body": int(_LIMITS.get("max_mail_body", 20000)),                # символов в письме
+    "register_limit_per_hour": int(_LIMITS.get("register_limit_per_hour", 50)),  # антиспам
+}

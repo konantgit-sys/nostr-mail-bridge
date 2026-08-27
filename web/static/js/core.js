@@ -39,3 +39,13 @@ Mail.showToast = (msg, kind = "ok") => {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove("toast-visible"), 2800);
 };
+
+/* Аватар: инициал + стабильный цвет по ключу (hash → hue). */
+Mail.avatarOf = function (addr) {
+  const key = (addr || "").split("@")[0] || "?";
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const ch = (addr && addr[0] === "n") ? key[5] || "N" : (key[0] || "?").toUpperCase();
+  return { ch, bg: `linear-gradient(135deg, hsl(${hue} 72% 58%), hsl(${(hue + 40) % 360} 72% 44%))` };
+};
