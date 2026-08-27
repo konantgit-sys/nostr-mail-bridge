@@ -13,12 +13,7 @@ Mail.openComposer = function (title, to = "", subject = "", replyTo = "", body =
   const form = Mail.$("compose-form");
   form.classList.remove("compose-in");
   bd.hidden = false;
-  bd.style.opacity = "0";
-  requestAnimationFrame(() => {
-    bd.style.transition = "opacity 180ms var(--ease-out)";
-    bd.style.opacity = "1";
-    form.classList.add("compose-in");
-  });
+  form.classList.add("compose-in");
   setTimeout(() => Mail.$("compose-to").focus(), 120);
 };
 

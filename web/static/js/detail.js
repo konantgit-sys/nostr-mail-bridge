@@ -27,8 +27,6 @@ Mail.openMail = async function (id, isOutbox = false) {
 Mail.renderDetail = function () {
   const m = Mail.STATE.current;
   const card = Mail.$("mail-card");
-  card.style.opacity = "0";
-  card.style.transform = "translateY(10px)";
   const who = m.isOutbox ? (m.to || "—") : (m.from || "—");
   const when = m.isOutbox ? Mail.fmtDate(m.sent_at) : Mail.fmtDate(m.received_at);
   card.innerHTML =
@@ -45,11 +43,6 @@ Mail.renderDetail = function () {
      </div>
      <div class="mail-body">${Mail.esc(m.body)}</div>
      ${(m.attachments && m.attachments.length) ? Mail.renderAttachList(m.attachments) : ""}`;
-  requestAnimationFrame(() => {
-    card.style.transition = "opacity 240ms var(--ease-out), transform 240ms var(--ease-out)";
-    card.style.opacity = "1";
-    card.style.transform = "translateY(0)";
-  });
   Mail.$("btn-unread").textContent = m.isOutbox ? "" : (m.is_read ? "Не прочитано" : "Прочитано");
   Mail.$("btn-unread").hidden = !!m.isOutbox;
 };

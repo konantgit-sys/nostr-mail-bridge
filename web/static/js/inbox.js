@@ -58,13 +58,10 @@ Mail.renderList = function () {
 
   list.innerHTML = "";
   const frag = document.createDocumentFragment();
-  items.forEach((m, i) => {
+  items.forEach((m) => {
     const el = document.createElement("div");
     const isUnread = isOutbox ? false : !m.is_read;
     el.className = "mail-item" + (isUnread ? " unread" : "");
-    el.style.opacity = "0";
-    el.style.transform = "translateY(8px)";
-    el.style.transitionDelay = Math.min(i * 45, 400) + "ms";
     const who = isOutbox ? (m.to || "—") : (m.from || "—");
     const when = isOutbox ? m.sent_at : m.received_at;
     const av = Mail.avatarOf(who);
@@ -81,14 +78,6 @@ Mail.renderList = function () {
     frag.appendChild(el);
   });
   list.appendChild(frag);
-
-  requestAnimationFrame(() => {
-    list.querySelectorAll(".mail-item").forEach((el) => {
-      el.style.transition = "opacity 240ms var(--ease-out), transform 240ms var(--ease-out)";
-      el.style.opacity = "1";
-      el.style.transform = "translateY(0)";
-    });
-  });
 };
 
 /* вкладки */
