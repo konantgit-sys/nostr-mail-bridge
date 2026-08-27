@@ -181,10 +181,19 @@ class MailBridge:
 
         attachments_json = json.dumps(parsed.get("attachments", []), ensure_ascii=False)
 
+        # маршрутизация To: письмо пришло на мост (p-тег = мы), но To: = другой ящик
+        # того же домена (внешние клиенты шлют через _smtp) → кладём в ящик адресата
+        owner = self.owner
+        to_addr = (parsed.get("to") or "").strip()
+        target = self._owner_for_to(to_addr) if to_addr else None
+        if target:
+            owner = target
+            self._log.info("маршрутизация To: %s → ящик %s", to_addr, owner[:12])
+
         # квота ящика: не копим сверх лимита
         with self._connect() as conn:
             cnt = conn.execute(
-                "SELECT COUNT(*) FROM inbox WHERE owner=?", (self.owner,)
+                "SELECT COUNT(*) FROM inbox WHERE owner=?", (owner,)
             ).fetchone()[0]
         if cnt >= self.max_inbox:
             self._log.warning("⚠️ ящик %s полон (%s/%s) — письмо отклонено", self.label, cnt, self.max_inbox)
@@ -207,7 +216,7 @@ class MailBridge:
                     int(time.time()),
                     json.dumps(raw_event, ensure_ascii=False),
                     attachments_json,
-                    self.owner,
+                    owner,
                 ),
             )
             inserted = conn.total_changes
@@ -220,6 +229,28 @@ class MailBridge:
             )
             return True
         return False
+
+    # ── маршрутизация по To: ────────────────────────────────
+
+    def _owner_for_to(self, addr: str) -> str | None:
+        """Адрес вида npub@домен → pubkey владельца ящика (таблица accounts).
+
+        Нужно для писем от внешних клиентов: они шлют через _smtp (наш ключ),
+        но To: указывает на другой ящик того же домена — письмо должно
+        попасть адресату, а не владельцу моста.
+        """
+        if "@" not in addr:
+            return None
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    "SELECT pubkey_hex FROM accounts WHERE address=?", (addr.strip(),)
+                ).fetchone()
+                if row and row[0] != self.owner:
+                    return row[0]
+        except Exception as e:
+            self._log.debug("маршрутизация To: нет accounts/ошибка: %s", e)
+        return None
 
     # ── исходящие ─────────────────────────────────────────
 

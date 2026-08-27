@@ -51,9 +51,19 @@ def sign_event(
 
 
 def verify_signature(pubkey: str, eid: str, sig: str) -> bool:
-    """Проверяет BIP-340 подпись события."""
+    """Проверяет BIP-340 подпись события.
+
+    pubkey может быть 64 hex (X-only, 32 байта) или 66 hex (compressed
+    с префиксом 02/03). secp256k1-py требует 33 байта с префиксом —
+    для X-only добавляем 02 (BIP-340, Y-чётность не важна).
+    """
     try:
-        pub = secp256k1.PublicKey(bytes.fromhex("02" + pubkey), raw=True)
+        pk_bytes = bytes.fromhex(pubkey)
+        if len(pk_bytes) == 32:
+            pk_bytes = b"\x02" + pk_bytes
+        if len(pk_bytes) != 33:
+            return False
+        pub = secp256k1.PublicKey(pk_bytes, raw=True)
         return pub.schnorr_verify(bytes.fromhex(eid), bytes.fromhex(sig), None, raw=True)
     except Exception:
         return False
