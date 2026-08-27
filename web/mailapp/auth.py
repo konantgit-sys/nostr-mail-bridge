@@ -206,9 +206,15 @@ def _bech32_decode(s: str) -> tuple[str, bytes] | None:
 
 
 def _nsec_to_hex(nsec: str) -> str | None:
-    """nsec → hex приватный ключ (32 байта)."""
+    """nsec → hex приватный ключ (32 байта).
+
+    Принимает nsec1… (bech32) ИЛИ 64-hex (удобно для агентов, у которых
+    bech32-представление повреждено, а hex-ключ валиден).
+    """
     nsec = nsec.strip()
     try:
+        if len(nsec) == 64 and all(c in "0123456789abcdefABCDEF" for c in nsec):
+            return nsec.lower()
         hrp, payload = _bech32_decode(nsec) or ("", b"")
         if hrp != "nsec" or len(payload) != 32:
             return None
