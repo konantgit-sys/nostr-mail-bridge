@@ -173,8 +173,7 @@ body {
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 30px 26px; box-shadow: var(--shadow);
   display: flex; flex-direction: column; gap: 12px; text-align: center;
-  opacity: 0; transform: translateY(12px) scale(0.98);
-  animation: login-in 260ms var(--ease-out) forwards;
+  opacity: 1; transform: none;
 }
 @keyframes login-in {
   to { opacity: 1; transform: translateY(0) scale(1); }
