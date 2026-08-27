@@ -98,7 +98,19 @@ def stats():
 
 @router.get("/.well-known/nostr.json")
 def nip05(name: str = ""):
-    return JSONResponse({"names": {"_smtp": PUBKEY, NPUB: PUBKEY}})
+    """NIP-05 discovery для ВСЕХ ящиков домена: _smtp (мост) + каждый npub.
+
+    Раньше отдавался только первый владелец — адреса новых пользователей
+    (друзей) не резолвились внешними клиентами (nostrmail.org и др.).
+    """
+    names = {"_smtp": PUBKEY, NPUB: PUBKEY}
+    try:
+        from ..auth import _all_accounts
+        for acc in _all_accounts():
+            names.setdefault(acc["npub"], acc["pubkey_hex"])
+    except Exception:
+        pass
+    return JSONResponse({"names": names})
 
 
 # ── auth ────────────────────────────────────────────────

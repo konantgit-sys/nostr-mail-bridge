@@ -137,6 +137,16 @@ def _account_by_address(address: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def _all_accounts() -> list[dict]:
+    """Все аккаунты домена (для NIP-05 discovery: каждый npub резолвится)."""
+    out = []
+    for row in query_accounts("SELECT pubkey_hex, label FROM accounts ORDER BY created_at"):
+        npub = _pubkey_to_npub(row["pubkey_hex"])
+        if npub:
+            out.append({"npub": npub, "pubkey_hex": row["pubkey_hex"], "label": row["label"]})
+    return out
+
+
 def query_accounts(sql: str, params: tuple = ()) -> list[dict]:
     with connect(cfg.DB) as conn:
         rows = conn.execute(sql, params).fetchall()

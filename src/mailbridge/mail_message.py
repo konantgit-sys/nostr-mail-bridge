@@ -55,7 +55,7 @@ def build_mail(
     import base64
     import uuid
 
-    mid = message_id or f"<{uuid.uuid4().hex}@cryter-mail.v2.site>"
+    mid = message_id or f"<{uuid.uuid4().hex}@snin-mail.v2.site>"
 
     lines = [
         f"From: {from_addr}",

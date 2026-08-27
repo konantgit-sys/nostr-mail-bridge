@@ -177,7 +177,7 @@ class MailBridge:
             self._log.debug("письмо без From/Subject — игнор")
             return False
 
-        message_id = parsed["message_id"] or f"<{uuid.uuid4().hex}@cryter-mail.v2.site>"
+        message_id = parsed["message_id"] or f"<{uuid.uuid4().hex}@snin-mail.v2.site>"
 
         attachments_json = json.dumps(parsed.get("attachments", []), ensure_ascii=False)
 
