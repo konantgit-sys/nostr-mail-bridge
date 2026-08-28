@@ -1,90 +1,112 @@
-# Nostr Mail Bridge — децентрализованная почта на Nostr
+# Nostr Mail Bridge
 
-Мост «Nostr ⇄ почта»: почтовые адреса вида `npub…@ваш-домен`, письма —
-события kind:1301 на релеях, шифрование NIP-44, метаданные скрыты NIP-59
-(gift wrap). Протокольно совместим с NostrMail (nostrmail.org, Nmail-клиент).
+**Self-hosted, decentralized email on the Nostr protocol.**
 
-Стек: Python 3.10+ · FastAPI · SQLite (WAL) · Nostr (NIP-44/59/96)
+Mailboxes look like `npub…@your-domain`. Messages are kind:1301 events on
+relays — encrypted with NIP-44, metadata hidden with NIP-59 (gift wrap).
+Protocol-compatible with NostrMail (nostrmail.org, Nmail client).
 
-## Возможности
+This is a complete server, not just a client: web inbox, multi-mailbox
+registration, NIP-05, IMAP bridge and Blossom file server — all in one
+`docker compose up`.
 
-- Почтовые ящики `npub…@домен`, NIP-05 резолвится автоматически
-- Письма = kind:1301 на релеях (RFC 2822 внутри), шифрование NIP-44,
-  метаданные скрыты NIP-59
-- Веб-клиент: входящие/исходящие, поиск, вложения (NIP-96 Blossom), ответы
-- Мульти-ящик: любой пользователь сам регистрирует ящик (свой nsec) —
-  без админа
-- **IMAP-мост**: каждый пользователь подключает свой внешний IMAP-ящик
-  (mail.ru / Yandex / Gmail) через вкладку «Входящие (IMAP)»; пароли
-  шифруются AES-256-GCM; письма приходят в его SNIN-ящик полным контуром
-  (IMAP → kind:1301, подпись ключом владельца → релеи → его мост → inbox)
-- NIP-96 Blossom: свой сервер вложений (upload/media/delete, проверка NIP-98)
-- Telegram-уведомления о новых письмах (опционально)
+| Login | Inbox |
+|---|---|
+| ![login](docs/screenshots/login.png) | ![inbox](docs/screenshots/inbox.png) |
 
-## Статус
+## Features
 
-- ✅ Фаза 0 — NIP-44 (10/10 векторов) + NIP-59 + kind 1301
-- ✅ Фаза 1 — демон моста (подписка, расшифровка, SQLite inbox, квота, вложения)
-- ✅ Фаза 2 — веб-inbox (авторизация, CRUD, поиск, outbox, мульти-ящик)
-- ✅ Фаза 3 — 19 ящиков агентов SNIN, NIP-05 (20 имён), маршрутизация To:, E2E
-- ✅ IMAP-мост (мульти-юзер, AES-256-GCM) — 56 тестов
-- ✅ NIP-96 Blossom — полный контур
-- ⏳ SMTP-мост для legacy email — нужен свой домен (MX/DKIM/SPF)
+- **Web inbox** — FastAPI + vanilla JS, dark UI: inbox/outbox, search,
+  compose, replies, read/unread, delete, attachments
+- **Multi-mailbox** — any user registers their own mailbox with their nsec;
+  no admin needed. 19 agent mailboxes already live on the SNIN instance
+- **NIP-05** — `/.well-known/nostr.json` served automatically, resolves
+  `npub…@your-domain`
+- **IMAP bridge** — every user connects their own external mailbox
+  (mail.ru / Yandex / Gmail) from the UI tab «Входящие (IMAP)»;
+  passwords stored AES-256-GCM encrypted; full chain
+  IMAP → kind:1301 (signed with the owner's key) → relays → owner's inbox
+- **NIP-96 Blossom** — built-in attachment server
+  (upload/media/delete, NIP-98 auth)
+- **Telegram notifications** — optional, per mailbox
+- **Quotas** — per-user limits (mails, sends/day, attachments)
+- **Docker** — one command deploy, healthcheck included
 
-## Быстрый старт
+## How it works
+
+```
+External NostrMail client ──► relays (kind:1301, NIP-59 gift wrap)
+                                     │
+                    bridge daemon ◄──┘ (subscribes, unwraps, decrypts)
+                                     │
+                                   SQLite inbox ──► Web UI (FastAPI)
+
+Regular email ──► IMAP bridge (per-user, AES-256-GCM creds)
+                    └─► kind:1301 on relays ──► owner's inbox
+```
+
+## Quick start
 
 ```bash
 git clone https://github.com/konantgit-sys/nostr-mail-bridge.git
 cd nostr-mail-bridge
 
 # Docker
-cp web/config.example.json web/config.json   # вписать nsec_hex, mail_domain, auth_password
+cp web/config.example.json web/config.json   # set nsec_hex, mail_domain, auth_password
 docker compose up -d --build
 curl http://localhost:8123/api/status
 
-# или без Docker
+# or bare metal
 pip install -r requirements.txt
 cd web && PYTHONPATH=../src python3 -m uvicorn app:app --port 8123
 ```
 
-**Подробная инструкция развёртывания на своём сервере: [DEPLOY.md](DEPLOY.md)**
+**Full deployment guide (NIP-05, IMAP, backups, updates): [DEPLOY.md](DEPLOY.md)**
 
-## Структура
-
-```
-src/mailbridge/
-  nip44.py          — NIP-44 v2 (проверено векторами)
-  nip59.py          — gift wrap / rumor (NIP-59)
-  mail_message.py   — сборка/парсинг kind:1301 (RFC 2822)
-  mail_bridge.py    — демон моста: подписка, расшифровка, доставка
-  imap_bridge.py    — демон IMAP-моста (мульти-юзер)
-  blossom.py        — клиент Blossom (вложения)
-web/                — веб-клиент (FastAPI + vanilla JS)
-  mailapp/          — app, auth, db, bridge, imap_store, routers
-  tests/            — 19+ API-тестов (включая IMAP)
-tests/              — тесты моста/NIP (векторы)
-docs/               — GUIDE-nostrmail, GUIDE-imap, GUIDE-friends, NIP-44/59
-DEPLOY.md           — развёртывание на своём сервере (Docker / bare metal)
-```
-
-## Тесты
+## Tests
 
 ```bash
 pip install -r requirements.txt
-cd web && python3 -m pytest tests -q     # API + IMAP
-python3 -m pytest tests -q               # мост / NIP
+cd web && python3 -m pytest tests -q     # web API + IMAP
+python3 -m pytest tests -q               # bridge / NIP (vectors)
 ```
 
-## Реестр агентов SNIN (ящики)
+92 tests, all green on a clean clone — `web/config.json` is auto-generated
+from the example for tests, no manual setup.
 
-19 ящиков, NIP-05 резолвит 20 имён: Крайтер, V2Bot, Алекс, aporialab,
-creator, analyst_ai, director_ai, executor_ai, marketing_ai, security_ai,
-strategist_ai, support_ai, rd_ai, Goose_from_Gensokyo, axiom,
-cryptoantology, anton_ai, archivist_ai, forecaster_ai.
+## Project layout
 
-Паспорта агентов — в `data/agents_registry/` (только публичные npub;
-приватные ключи в git НЕ хранятся).
+```
+src/mailbridge/
+  nip44.py          — NIP-44 v2 (verified against official vectors)
+  nip59.py          — gift wrap / rumor (NIP-59)
+  mail_message.py   — kind:1301 build/parse (RFC 2822 body)
+  mail_bridge.py    — bridge daemon: subscribe, unwrap, deliver
+  imap_bridge.py    — IMAP daemon (multi-user)
+  blossom.py        — Blossom client (attachments)
+web/                — web client (FastAPI + vanilla JS)
+  mailapp/          — app, auth, db, bridge, imap_store, routers
+  tests/            — API + IMAP tests
+docs/               — NIP specs, guides (nostrmail, IMAP, friends)
+DEPLOY.md           — self-hosted deployment (Docker / bare metal)
+```
 
-## Лицензия
+## Live instance
 
-MIT — см. [LICENSE](LICENSE)
+The SNIN network runs a live instance: **https://snin-mail.v2.site**
+(19 mailboxes, NIP-05 resolves 20 names). Every agent has a mailbox:
+`npub…@snin-mail.v2.site`.
+
+## Roadmap
+
+- ✅ NIP-44 (10/10 vectors) + NIP-59 + kind:1301
+- ✅ Bridge daemon (subscribe, decrypt, SQLite inbox, quotas, attachments)
+- ✅ Web inbox (auth, CRUD, search, outbox, multi-mailbox)
+- ✅ 19 agent mailboxes, NIP-05, To: routing, E2E
+- ✅ IMAP bridge (multi-user, AES-256-GCM) — 56 tests
+- ✅ NIP-96 Blossom — full chain
+- ⏳ SMTP outbound (Nostr → legacy email) — needs own domain (MX/DKIM/SPF)
+
+## License
+
+MIT — see [LICENSE](LICENSE)
