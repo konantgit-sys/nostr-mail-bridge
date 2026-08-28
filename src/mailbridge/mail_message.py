@@ -211,7 +211,9 @@ def _part_to_attachment(ph: dict, pbody: str) -> dict | None:
         um = re.search(r'URL="?([^"\s]+)"?', ctype, re.IGNORECASE)
         url = um.group(1) if um else None
         if url:
-            return {"filename": fname or "file", "mime": mime, "url": url}
+            return {"filename": fname or "file",
+                    "mime": (ph.get("x-attachment-mime") or "application/octet-stream").strip(),
+                    "url": url}
         return None
     loc = ph.get("content-location", "")
     if loc.strip().startswith("http"):
