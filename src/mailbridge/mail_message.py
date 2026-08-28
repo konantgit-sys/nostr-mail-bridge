@@ -27,7 +27,7 @@ import re
 MAIL_KIND = 1301
 MAX_MAIL_SIZE = 60000  # байт (запас под NIP-44 лимит 65535 + JSON rumor)
 
-_HEADER_RE = re.compile(r"^([A-Za-z-]+):\s?(.*)$", re.MULTILINE)
+_HEADER_RE = re.compile(r"^([A-Za-z0-9-]+):\s?(.*)$", re.MULTILINE)
 
 
 def _rfc2822_date(ts: datetime.datetime | None = None) -> str:
@@ -88,11 +88,13 @@ def build_mail(
         for att in url_atts:
             fname = (att.get("filename") or "file").replace('"', "'")
             mime = att.get("mime") or "application/octet-stream"
+            sha = att.get("sha256") or ""
             parts += [
                 f"--{boundary}",
                 f'Content-Type: message/external-body; access-type=URL; URL="{att["url"]}"; name="{fname}"',
                 f'Content-Disposition: attachment; filename="{fname}"',
                 f"X-Attachment-Mime: {mime}",
+                f"X-Attachment-Sha256: {sha}" if sha else "X-Attachment-Sha256:",
                 "",
                 f"Файл: {fname} ({mime}). Скачать: {att['url']}",
             ]
@@ -213,7 +215,8 @@ def _part_to_attachment(ph: dict, pbody: str) -> dict | None:
         if url:
             return {"filename": fname or "file",
                     "mime": (ph.get("x-attachment-mime") or "application/octet-stream").strip(),
-                    "url": url}
+                    "url": url,
+                    "sha256": (ph.get("x-attachment-sha256") or "").strip()}
         return None
     loc = ph.get("content-location", "")
     if loc.strip().startswith("http"):

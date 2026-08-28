@@ -186,6 +186,30 @@ def test_send_mail_creates_valid_gift_wrap():
         assert n == 1
 
 
+
+
+def test_url_attachment_sha256_roundtrip():
+    """sha256 url-вложения переживает build_mail → parse_mail (целостность файла)."""
+    import base64
+    from mailbridge.mail_message import build_mail, parse_mail
+
+    sha = "9c7ff9d1857aaa4255a3e97b1996c327966a746fba28ad36ab3d33400d5e1b64"
+    att = {"filename": "big.bin", "mime": "application/octet-stream",
+           "url": "https://x/media/" + sha, "sha256": sha}
+    mail = build_mail("a@x", "b@x", "С вложением", "Текст", attachments=[att])
+    parsed = parse_mail(mail)
+    assert len(parsed["attachments"]) == 1
+    a = parsed["attachments"][0]
+    assert a["url"] == "https://x/media/" + sha
+    assert a["sha256"] == sha, f"sha256 потерялся: {a}"
+
+    # без sha256 — пустая строка, не ключ-ошибка
+    att2 = {"filename": "old.bin", "mime": "application/octet-stream", "url": "https://x/media/abc"}
+    mail2 = build_mail("a@x", "b@x", "Старое", "Т", attachments=[att2])
+    a2 = parse_mail(mail2)["attachments"][0]
+    assert a2["sha256"] == ""
+
+
 if __name__ == "__main__":
     import traceback
 
@@ -245,3 +269,25 @@ def test_ingest_inbox_quota(tmp_path):
     with sqlite3.connect(db) as c:
         n = c.execute("SELECT COUNT(*) FROM inbox").fetchone()[0]
     assert n == 2
+
+
+def test_url_attachment_sha256_roundtrip():
+    """sha256 url-вложения переживает build_mail → parse_mail (целостность файла)."""
+    import base64
+    from mailbridge.mail_message import build_mail, parse_mail
+
+    sha = "9c7ff9d1857aaa4255a3e97b1996c327966a746fba28ad36ab3d33400d5e1b64"
+    att = {"filename": "big.bin", "mime": "application/octet-stream",
+           "url": "https://x/media/" + sha, "sha256": sha}
+    mail = build_mail("a@x", "b@x", "С вложением", "Текст", attachments=[att])
+    parsed = parse_mail(mail)
+    assert len(parsed["attachments"]) == 1
+    a = parsed["attachments"][0]
+    assert a["url"] == "https://x/media/" + sha
+    assert a["sha256"] == sha, f"sha256 потерялся: {a}"
+
+    # без sha256 — пустая строка, не ключ-ошибка
+    att2 = {"filename": "old.bin", "mime": "application/octet-stream", "url": "https://x/media/abc"}
+    mail2 = build_mail("a@x", "b@x", "Старое", "Т", attachments=[att2])
+    a2 = parse_mail(mail2)["attachments"][0]
+    assert a2["sha256"] == ""
