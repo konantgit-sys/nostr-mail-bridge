@@ -385,6 +385,9 @@ def _authed(session: str | None) -> str | None:
 
 
 def auth_error() -> JSONResponse:
+    # НЕ возвращать 401: прокси v2.site превращает 401 бэкенда в 502
+    # "Backend temporarily unavailable" (проверено 2026-08-28 на /upload и /api/*).
+    # Фронт ловит error=="auth" и показывает экран логина.
     return JSONResponse({"ok": False, "error": "auth"})
 
 
@@ -426,7 +429,7 @@ def _start_session(acc: dict, response: Response):
     SESSIONS[token] = acc["pubkey_hex"]
     _save_sessions(SESSIONS)
     response.set_cookie(
-        "mail_session", token, httponly=True, samesite="lax",
+        "snin_session", token, httponly=True, samesite="lax",
         max_age=cfg.SESSIONS_TTL, path="/",
     )
     return {"ok": True, "address": display_address(acc), "label": acc["label"], "role": acc["role"], "owner": acc["pubkey_hex"], "token": token}
@@ -452,7 +455,7 @@ def legacy_login(password: str, response: Response):
     SESSIONS[token] = acc["pubkey_hex"]
     _save_sessions(SESSIONS)
     response.set_cookie(
-        "mail_session", token, httponly=True, samesite="lax",
+        "snin_session", token, httponly=True, samesite="lax",
         max_age=cfg.SESSIONS_TTL, path="/",
     )
     return {"ok": True, "address": display_address(acc), "label": acc["label"], "role": acc["role"], "owner": acc["pubkey_hex"], "token": token}
@@ -542,7 +545,7 @@ def logout(response: Response, session: str | None):
     if session:
         SESSIONS.pop(session, None)
         _save_sessions(SESSIONS)
-    response.delete_cookie("mail_session", path="/")
+    response.delete_cookie("snin_session", path="/")
     return {"ok": True}
 
 

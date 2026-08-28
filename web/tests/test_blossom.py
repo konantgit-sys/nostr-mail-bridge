@@ -78,7 +78,8 @@ def client(db, tmp_path, monkeypatch):
 
 
 def _login(client):
-    return client.post("/api/login", json={"password": PASSWORD})
+    """Возвращает Authorization-заголовок (Bearer-токен) — cookie не читается."""
+    return {"Authorization": "Bearer " + client.post("/api/login", json={"password": PASSWORD}).json()["token"]}
 
 
 def _nip98_auth(privkey_hex: str, url: str, method: str = "POST") -> str:
@@ -95,9 +96,9 @@ def _nip98_auth(privkey_hex: str, url: str, method: str = "POST") -> str:
 # ── внутренний upload (session) ─────────────────────────
 
 def test_internal_upload_download_roundtrip(client):
-    _login(client)
+    h = _login(client)
     b64 = base64.b64encode(TEST_CONTENT).decode()
-    r = client.post("/api/blossom/upload", json={"filename": "t.bin", "mime": "application/octet-stream", "data_base64": b64})
+    r = client.post("/api/blossom/upload", json={"filename": "t.bin", "mime": "application/octet-stream", "data_base64": b64}, headers=h)
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["url"].startswith("https://test.local/media/")
@@ -116,9 +117,9 @@ def test_internal_upload_requires_auth(client):
 
 
 def test_internal_upload_too_large(client, monkeypatch):
-    _login(client)
+    h = _login(client)
     monkeypatch.setattr(blossom, "MAX_UPLOAD", 10)  # 10 байт
-    r = client.post("/api/blossom/upload", json={"data_base64": base64.b64encode(b"x" * 100).decode()})
+    r = client.post("/api/blossom/upload", json={"data_base64": base64.b64encode(b"x" * 100).decode()}, headers=h)
     assert r.status_code == 413
 
 
@@ -181,12 +182,12 @@ def _chunks_of(data: bytes, size: int = 300 * 1024):
 
 def test_chunk_upload_small_file_single_part(client):
     """total=1 — одна часть, сразу сборка."""
-    _login(client)
+    h = _login(client)
     content = b"hello chunk upload"
     r = client.post("/api/blossom/upload-chunk", json={
         "filename": "a.txt", "mime": "text/plain", "total": 1, "index": 0,
         "data_base64": base64.b64encode(content).decode(),
-    })
+    }, headers=h)
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["ok"] is True
@@ -199,7 +200,7 @@ def test_chunk_upload_small_file_single_part(client):
 
 def test_chunk_upload_multipart_roundtrip(client):
     """Файл 1.2 МБ в 5 частей — сборка, sha256 совпадает с прямым расчётом."""
-    _login(client)
+    h = _login(client)
     import hashlib
     content = os.urandom(1_200_000)
     parts = _chunks_of(content)
@@ -209,7 +210,7 @@ def test_chunk_upload_multipart_roundtrip(client):
                 "total": len(parts), "index": i, "data_base64": b64}
         if up_id:
             body["upload_id"] = up_id
-        r = client.post("/api/blossom/upload-chunk", json=body)
+        r = client.post("/api/blossom/upload-chunk", json=body, headers=h)
         assert r.status_code == 200, r.text
         d = r.json()
         if i < len(parts) - 1:
@@ -223,12 +224,12 @@ def test_chunk_upload_multipart_roundtrip(client):
 
 
 def test_chunk_upload_chunk_too_large(client):
-    _login(client)
+    h = _login(client)
     big = base64.b64encode(os.urandom(blossom.CHUNK_MAX + 1)).decode()
     r = client.post("/api/blossom/upload-chunk", json={
         "filename": "x", "mime": "application/octet-stream", "total": 1, "index": 0,
         "data_base64": big,
-    })
+    }, headers=h)
     assert r.status_code == 413
 
 
@@ -242,16 +243,16 @@ def test_chunk_upload_requires_auth(client):
 
 def test_chunk_upload_missing_part(client):
     """Если клиент пропустил часть — сборка падает с 'missing part'."""
-    _login(client)
+    h = _login(client)
     c0 = base64.b64encode(b"part0").decode()
     c1 = base64.b64encode(b"part1").decode()
     r0 = client.post("/api/blossom/upload-chunk", json={
-        "filename": "x", "mime": "application/octet-stream", "total": 3, "index": 0, "data_base64": c0})
+        "filename": "x", "mime": "application/octet-stream", "total": 3, "index": 0, "data_base64": c0}, headers=h)
     up_id = r0.json()["upload_id"]
     # шлём сразу последнюю (index=2), часть 1 пропущена
     r2 = client.post("/api/blossom/upload-chunk", json={
         "filename": "x", "mime": "application/octet-stream", "total": 3, "index": 2,
-        "data_base64": c1, "upload_id": up_id})
+        "data_base64": c1, "upload_id": up_id}, headers=h)
     assert r2.status_code == 400
     assert "missing part" in r2.json()["error"]
 

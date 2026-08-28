@@ -12,20 +12,24 @@ from fastapi import APIRouter, Cookie, Request, Response
 
 
 def _session_of(req: Request) -> str | None:
-    """Сессия: Authorization: Bearer <token> (приоритет — прокси v2.site
-    подмешивает свою cookie mail_session, заголовок не подмешивается) → cookie."""
+    """Сессия: ТОЛЬКО Authorization: Bearer <token>.
+
+    Прокси v2.site кеширует Set-Cookie приложения и подмешивает её в чужие
+    запросы (проверено 2026-08-28: GET /api/mails без cookie отдавал чужой
+    ящик). Поэтому cookie-авторизация на v2.site небезопасна — читаем только
+    заголовок, который прокси не трогает."""
     auth = req.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         t = auth[7:].strip()
         if t:
             return t
-    return req.cookies.get("mail_session")
+    return None
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .. import config as cfg
 from ..config import MAIL_ADDR, NPUB, PUBKEY, RELAYS, LIGHTNING, DOMAIN, OWNERS, OWNER_INDEX, DEFAULT_OWNER
-from ..db import connect, execute, query
+from ..db import connect, execute, query, query_one
 from ..auth import _authed, auth_error, display_address, login as do_login, logout as do_logout, register as do_register
 from .. import bridge as bridge_mod
 
@@ -189,7 +193,7 @@ def logout(response: Response, req: Request):
 
 # ── входящие ────────────────────────────────────────────
 @router.get("/api/mails")
-def mails(req: Request, owner: str = ""):
+def mails(req: Request, owner: str = "", offset: int = 0, limit: int = 100):
     me = _authed(_session_of(req))
     if not me:
         return auth_error()
@@ -199,16 +203,19 @@ def mails(req: Request, owner: str = ""):
         own = me  # обычный пользователь видит только свой ящик
     else:
         own = owner or me
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    total = query_one(cfg.DB, "SELECT COUNT(*) c FROM inbox WHERE owner=?", (own,))["c"]
     rows = query(
         cfg.DB,
         "SELECT id, message_id, from_addr, subject, body, received_at, is_read "
-        "FROM inbox WHERE owner=? ORDER BY received_at DESC LIMIT 200",
-        (own,),
+        "FROM inbox WHERE owner=? ORDER BY received_at DESC LIMIT ? OFFSET ?",
+        (own, limit, offset),
     )
     for r in rows:
         r["is_read"] = bool(r["is_read"])
         r["from"] = r.pop("from_addr")
-    return {"ok": True, "mails": rows}
+    return {"ok": True, "mails": rows, "total": total, "has_more": offset + len(rows) < total}
 
 
 @router.get("/api/mails/{mid}")
@@ -245,6 +252,18 @@ def mail_set_read(mid: int, body: dict, req: Request):
     if n == 0:
         return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
     return {"ok": True, "id": mid, "is_read": read}
+
+
+@router.delete("/api/mails")
+def mails_clean(req: Request, filter: str = ""):
+    """Массовое удаление: DELETE /api/mails?filter=read — все прочитанные своего ящика."""
+    me = _authed(_session_of(req))
+    if not me:
+        return auth_error()
+    if filter == "read":
+        n = execute(cfg.DB, "DELETE FROM inbox WHERE owner=? AND is_read=1", (me,))
+        return {"ok": True, "deleted": n, "filter": "read"}
+    return JSONResponse({"ok": False, "error": "unknown filter"}, status_code=400)
 
 
 @router.delete("/api/mails/{mid}")
@@ -387,7 +406,7 @@ def send_mail_api(body: SendBody, req: Request):
 
 
 @router.get("/api/outbox")
-def outbox(req: Request, owner: str = ""):
+def outbox(req: Request, owner: str = "", offset: int = 0, limit: int = 100):
     me = _authed(_session_of(req))
     if not me:
         return auth_error()
@@ -397,12 +416,15 @@ def outbox(req: Request, owner: str = ""):
         own = me
     else:
         own = owner or me
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    total = query_one(cfg.DB, "SELECT COUNT(*) c FROM outbox WHERE owner=?", (own,))["c"]
     rows = query(
         cfg.DB,
         "SELECT id, message_id, recipient_pubkey, subject, body, sent_at FROM outbox "
-        "WHERE owner=? ORDER BY sent_at DESC LIMIT 100",
-        (own,),
+        "WHERE owner=? ORDER BY sent_at DESC LIMIT ? OFFSET ?",
+        (own, limit, offset),
     )
     for r in rows:
         r["to"] = r.pop("recipient_pubkey")
-    return {"ok": True, "outbox": rows}
+    return {"ok": True, "outbox": rows, "total": total, "has_more": offset + len(rows) < total}

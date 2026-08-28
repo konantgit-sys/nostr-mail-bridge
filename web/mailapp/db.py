@@ -39,6 +39,12 @@ def query(db_path: str, sql: str, params: tuple = ()) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def query_one(db_path: str, sql: str, params: tuple = ()) -> dict | None:
+    """Одна строка (dict) или None."""
+    rows = query(db_path, sql, params)
+    return rows[0] if rows else None
+
+
 def execute(db_path: str, sql: str, params: tuple = ()) -> int:
     """Короткий хелпер для записи: возвращает rowcount."""
     with connect(db_path) as conn:

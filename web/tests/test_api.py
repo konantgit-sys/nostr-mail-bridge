@@ -94,7 +94,7 @@ def test_login_ok_sets_cookie(client):
     r = _login(client)
     assert r.status_code == 200
     assert r.json()["ok"] is True
-    assert "mail_session" in r.cookies
+    assert "snin_session" in r.cookies
 
 
 def test_mails_requires_auth(client):
@@ -106,31 +106,31 @@ def test_mails_requires_auth(client):
 
 def test_any_cookie_rejected(client):
     """РЕГРЕССИЯ v1: раньше любая cookie пускала. Теперь — только реальный токен."""
-    r = client.get("/api/mails", cookies={"mail_session": "deadbeef"})
+    r = client.get("/api/mails", headers={"Authorization": "Bearer " + "deadbeef"})
     assert r.status_code == 200
     assert r.json()["ok"] is False
 
 
 def test_logout_invalidates_session(client):
     r = _login(client)
-    token = r.cookies["mail_session"]
-    assert client.get("/api/mails", cookies={"mail_session": token}).status_code == 200
-    r2 = client.post("/api/logout", cookies={"mail_session": token})
+    token = r.json()["token"]
+    assert client.get("/api/mails", headers={"Authorization": "Bearer " + token}).status_code == 200
+    r2 = client.post("/api/logout", headers={"Authorization": "Bearer " + token})
     assert r2.status_code == 200
-    assert client.get("/api/mails", cookies={"mail_session": token}).json()["ok"] is False
+    assert client.get("/api/mails", headers={"Authorization": "Bearer " + token}).json()["ok"] is False
 
 
 def test_status_ok_flag(client):
     assert client.get("/api/status").json()["ok"] is False
     r = _login(client)
-    assert client.get("/api/status", cookies={"mail_session": r.cookies["mail_session"]}).json()["ok"] is True
+    assert client.get("/api/status", headers={"Authorization": "Bearer " + r.json()["token"]}).json()["ok"] is True
 
 
 # ── письма: список/деталь ────────────────────────────────
 
 def test_mails_list(client):
     r = _login(client)
-    d = client.get("/api/mails", cookies={"mail_session": r.cookies["mail_session"]})
+    d = client.get("/api/mails", headers={"Authorization": "Bearer " + r.json()["token"]})
     assert d.status_code == 200
     mails = d.json()["mails"]
     assert len(mails) == 2
@@ -145,49 +145,49 @@ def test_mails_list(client):
 
 def test_mail_detail_marks_read(client):
     r = _login(client)
-    s = r.cookies["mail_session"]
-    d = client.get("/api/mails/2", cookies={"mail_session": s})
+    s = r.json()["token"]
+    d = client.get("/api/mails/2", headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200
     assert d.json()["mail"]["subject"] == "Срочно"
     # повторный запрос списка — письмо 2 прочитано (уже было), письмо 1 — не тронуто
-    d2 = client.get("/api/mails/1", cookies={"mail_session": s})
+    d2 = client.get("/api/mails/1", headers={"Authorization": "Bearer " + s})
     assert d2.json()["mail"]["is_read"] is True  # деталь автоматически прочитала
 
 
 def test_mail_detail_404(client):
     r = _login(client)
-    assert client.get("/api/mails/999", cookies={"mail_session": r.cookies["mail_session"]}).status_code == 404
+    assert client.get("/api/mails/999", headers={"Authorization": "Bearer " + r.json()["token"]}).status_code == 404
 
 
 # ── прочитано/непрочитано ────────────────────────────────
 
 def test_mail_set_read_unread(client):
     r = _login(client)
-    s = r.cookies["mail_session"]
-    d = client.post("/api/mails/1/read", json={"read": True}, cookies={"mail_session": s})
+    s = r.json()["token"]
+    d = client.post("/api/mails/1/read", json={"read": True}, headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200 and d.json()["is_read"] is True
-    d = client.post("/api/mails/1/read", json={"read": False}, cookies={"mail_session": s})
+    d = client.post("/api/mails/1/read", json={"read": False}, headers={"Authorization": "Bearer " + s})
     assert d.json()["is_read"] is False
     # проверить в списке
-    lst = client.get("/api/mails", cookies={"mail_session": s}).json()["mails"]
+    lst = client.get("/api/mails", headers={"Authorization": "Bearer " + s}).json()["mails"]
     assert lst[1]["is_read"] is False
 
 
 def test_mail_set_read_404(client):
     r = _login(client)
     assert client.post("/api/mails/999/read", json={"read": True},
-                       cookies={"mail_session": r.cookies["mail_session"]}).status_code == 404
+                       headers={"Authorization": "Bearer " + r.json()["token"]}).status_code == 404
 
 
 # ── удаление ─────────────────────────────────────────────
 
 def test_mail_delete(client):
     r = _login(client)
-    s = r.cookies["mail_session"]
-    d = client.delete("/api/mails/1", cookies={"mail_session": s})
+    s = r.json()["token"]
+    d = client.delete("/api/mails/1", headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200 and d.json()["deleted"] == 1
-    assert client.get("/api/mails/1", cookies={"mail_session": s}).status_code == 404
-    assert client.delete("/api/mails/1", cookies={"mail_session": s}).status_code == 404
+    assert client.get("/api/mails/1", headers={"Authorization": "Bearer " + s}).status_code == 404
+    assert client.delete("/api/mails/1", headers={"Authorization": "Bearer " + s}).status_code == 404
 
 
 # ── отправка ─────────────────────────────────────────────
@@ -201,28 +201,28 @@ def test_send_requires_auth(client):
 
 def test_send_validation(client):
     r = _login(client)
-    s = r.cookies["mail_session"]
+    s = r.json()["token"]
     # пустая тема
     assert client.post("/api/send", json={"to_npub": NPUB, "subject": "", "body": "b"},
-                       cookies={"mail_session": s}).status_code == 400
+                       headers={"Authorization": "Bearer " + s}).status_code == 400
     # пустое тело
     assert client.post("/api/send", json={"to_npub": NPUB, "subject": "s", "body": "  "},
-                       cookies={"mail_session": s}).status_code == 400
+                       headers={"Authorization": "Bearer " + s}).status_code == 400
     # мусорный адресат
     assert client.post("/api/send", json={"to_npub": "not-a-npub", "subject": "s", "body": "b"},
-                       cookies={"mail_session": s}).status_code == 400
+                       headers={"Authorization": "Bearer " + s}).status_code == 400
 
 
 def test_send_ok_writes_outbox(client):
     r = _login(client)
-    s = r.cookies["mail_session"]
+    s = r.json()["token"]
     d = client.post("/api/send", json={"to_npub": NPUB, "subject": "Тема", "body": "Тело"},
-                    cookies={"mail_session": s})
+                    headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200
     assert d.json()["ok"] is True
     assert "event_id" in d.json()
     # в outbox появилось
-    ob = client.get("/api/outbox", cookies={"mail_session": s}).json()["outbox"]
+    ob = client.get("/api/outbox", headers={"Authorization": "Bearer " + s}).json()["outbox"]
     assert len(ob) == 2
     assert ob[0]["subject"] == "Тема"
 
@@ -230,10 +230,10 @@ def test_send_ok_writes_outbox(client):
 def test_send_full_address(client):
     """Адресат в формате npub@домен тоже принимается."""
     r = _login(client)
-    s = r.cookies["mail_session"]
+    s = r.json()["token"]
     d = client.post("/api/send", json={"to_npub": f"{NPUB}@{cfg.DOMAIN}",
                                        "subject": "Полный адрес", "body": "Тело"},
-                    cookies={"mail_session": s})
+                    headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200 and d.json()["ok"] is True
 
 
@@ -247,7 +247,7 @@ def test_outbox_requires_auth(client):
 
 def test_outbox_list(client):
     r = _login(client)
-    d = client.get("/api/outbox", cookies={"mail_session": r.cookies["mail_session"]})
+    d = client.get("/api/outbox", headers={"Authorization": "Bearer " + r.json()["token"]})
     assert d.status_code == 200
     assert len(d.json()["outbox"]) == 1
     assert d.json()["outbox"][0]["subject"] == "Отправленное"
@@ -314,7 +314,7 @@ def test_login_by_address_with_own_password(client):
     assert r.status_code == 200
     assert r.json()["ok"] is True
     assert r.json()["role"] == "user"
-    assert "mail_session" in r.cookies
+    assert "snin_session" in r.cookies
 
 
 def test_login_wrong_password_new_account(client):
@@ -330,29 +330,29 @@ def test_user_sees_only_own_mailbox(client):
     nsec, _, npub = _new_nsec()
     client.post("/api/register", json={"nsec": nsec, "password": "secret123"})
     r = client.post("/api/login", json={"address": npub, "password": "secret123"})
-    s = r.cookies["mail_session"]
+    s = r.json()["token"]
     # в БД есть письма OWNER_A, но ?owner=OWNER_A — не должен их отдать
-    d = client.get("/api/mails?owner=OWNER_A", cookies={"mail_session": s})
+    d = client.get("/api/mails?owner=OWNER_A", headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200
     assert d.json()["mails"] == []
-    st = client.get("/api/status", cookies={"mail_session": s})
+    st = client.get("/api/status", headers={"Authorization": "Bearer " + s})
     assert st.json()["me"]["role"] == "user"
     assert len(st.json()["accounts"]) == 1  # только свой
 
 
 def test_send_with_attachment_and_detail(client):
     import base64
-    s = _login(client).cookies["mail_session"]
+    s = _login(client).json()["token"]
     pdf = b"%PDF-1.4 test " + b"x" * 100
     att = {"filename": "spec.pdf", "mime": "application/pdf", "data_base64": base64.b64encode(pdf).decode()}
     d = client.post("/api/send", json={
         "to_npub": f"{cfg.NPUB}@{cfg.DOMAIN}", "subject": "С файлом", "body": "Смотри",
         "attachments": [att],
-    }, cookies={"mail_session": s})
+    }, headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200
     assert d.json()["ok"] is True
     # письмо легло в outbox
-    ob = client.get("/api/outbox", cookies={"mail_session": s}).json()["outbox"]
+    ob = client.get("/api/outbox", headers={"Authorization": "Bearer " + s}).json()["outbox"]
     assert ob and ob[0]["subject"] == "С файлом"
     # вложение доехало до сервера: событие (raw_event) содержит multipart-контент
     from mailapp.db import query
@@ -365,18 +365,18 @@ def test_send_with_attachment_and_detail(client):
 
 def test_send_attachment_too_many(client):
     import base64
-    s = _login(client).cookies["mail_session"]
+    s = _login(client).json()["token"]
     atts = [{"filename": f"f{i}.bin", "mime": "application/octet-stream", "data_base64": base64.b64encode(b"x" * 10).decode()} for i in range(6)]
     d = client.post("/api/send", json={
         "to_npub": f"{cfg.NPUB}@{cfg.DOMAIN}", "subject": "Много", "body": "b", "attachments": atts,
-    }, cookies={"mail_session": s})
+    }, headers={"Authorization": "Bearer " + s})
     assert d.status_code == 400
     assert "5" in d.json()["error"]
 
 
 def test_detail_returns_attachments(client):
     import json as _json
-    s = _login(client).cookies["mail_session"]
+    s = _login(client).json()["token"]
     # вставляем письмо с вложениями напрямую в БД (как это делает мост)
     from mailapp.db import connect
     with connect(cfg.DB) as conn:
@@ -389,7 +389,7 @@ def test_detail_returns_attachments(client):
              "OWNER_A"),
         )
         mid = conn.execute("SELECT id FROM inbox WHERE message_id='<a1@x>'").fetchone()[0]
-    d = client.get(f"/api/mails/{mid}", cookies={"mail_session": s})
+    d = client.get(f"/api/mails/{mid}", headers={"Authorization": "Bearer " + s})
     assert d.status_code == 200
     m = d.json()["mail"]
     assert m["body"] == "Текст"
@@ -476,9 +476,9 @@ def test_reset_password_wrong_key_rejected(client):
 def test_send_attachment_too_big(client, monkeypatch):
     """Вложение больше лимита → 413."""
     monkeypatch.setattr(cfg, "LIMITS", {**cfg.LIMITS, "max_attachment_size_mb": 5})
-    s = _login(client).cookies["mail_session"]
+    s = _login(client).json()["token"]
     big = base64.b64encode(b"x" * (6 * 1024 * 1024)).decode()  # 6 МБ
-    r = client.post("/api/send", cookies={"mail_session": s}, json={
+    r = client.post("/api/send", headers={"Authorization": "Bearer " + s}, json={
         "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
         "subject": "Файл", "body": "текст",
         "attachments": [{"filename": "big.bin", "mime": "application/octet-stream", "data_base64": big}],
@@ -488,10 +488,10 @@ def test_send_attachment_too_big(client, monkeypatch):
 
 def test_send_too_many_attachments(client, monkeypatch):
     monkeypatch.setattr(cfg, "LIMITS", {**cfg.LIMITS, "max_attachments_per_mail": 5})
-    s = _login(client).cookies["mail_session"]
+    s = _login(client).json()["token"]
     small = base64.b64encode(b"ok").decode()
     atts = [{"filename": f"f{i}.bin", "mime": "application/octet-stream", "data_base64": small} for i in range(6)]
-    r = client.post("/api/send", cookies={"mail_session": s}, json={
+    r = client.post("/api/send", headers={"Authorization": "Bearer " + s}, json={
         "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
         "subject": "Много", "body": "текст", "attachments": atts,
     })
@@ -502,14 +502,14 @@ def test_send_too_many_attachments(client, monkeypatch):
 def test_send_daily_limit(client, monkeypatch):
     """Дневной лимит отправок → 429 после исчерпания."""
     monkeypatch.setattr(cfg, "LIMITS", {**cfg.LIMITS, "max_send_per_day": 1})
-    s = _login(client).cookies["mail_session"]
+    s = _login(client).json()["token"]
     payload = {
         "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
         "subject": "Лимит", "body": "текст",
     }
-    r1 = client.post("/api/send", cookies={"mail_session": s}, json=payload)
+    r1 = client.post("/api/send", headers={"Authorization": "Bearer " + s}, json=payload)
     assert r1.json()["ok"] is True
-    r2 = client.post("/api/send", cookies={"mail_session": s}, json=payload)
+    r2 = client.post("/api/send", headers={"Authorization": "Bearer " + s}, json=payload)
     assert r2.status_code == 429
 
 
@@ -618,3 +618,62 @@ def test_register_no_password(client):
     d2 = client.post("/api/login", json={"nsec": nsec})
     assert d2.json()["ok"] is True, d2.text
     assert d2.json()["address"] == addr
+
+
+# ── пагинация ───────────────────────────────────────────
+
+def test_mails_pagination(client):
+    """GET /api/mails?offset=&limit= → {mails, total, has_more}."""
+    h = {"Authorization": "Bearer " + _login(client).json()["token"]}
+    r = client.get("/api/mails?limit=1&offset=0", headers=h)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["ok"] is True
+    assert len(d["mails"]) == 1
+    assert d["total"] == 2          # в фикстуре 2 письма
+    assert d["has_more"] is True    # 0+1 < 2
+    r2 = client.get("/api/mails?limit=1&offset=1", headers=h)
+    d2 = r2.json()
+    assert len(d2["mails"]) == 1
+    assert d2["has_more"] is False
+    # пределы: limit >100 режется до 100, отрицательный offset → 0
+    r3 = client.get("/api/mails?limit=999&offset=-5", headers=h)
+    assert r3.status_code == 200
+
+
+def test_outbox_pagination(client):
+    """GET /api/outbox → total/has_more."""
+    h = {"Authorization": "Bearer " + _login(client).json()["token"]}
+    r = client.get("/api/outbox", headers=h)
+    d = r.json()
+    assert d["ok"] is True
+    assert d["total"] == 1
+    assert d["has_more"] is False
+
+
+# ── массовое удаление ───────────────────────────────────
+
+def test_mails_clean_read(client):
+    """DELETE /api/mails?filter=read — удаляет только прочитанные (свои)."""
+    h = {"Authorization": "Bearer " + _login(client).json()["token"]}
+    r = client.delete("/api/mails?filter=read", headers=h)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["ok"] is True
+    assert d["deleted"] == 1  # в фикстуре 1 прочитанное (is_read=1)
+    # осталось только непрочитанное
+    r2 = client.get("/api/mails", headers=h)
+    assert r2.json()["total"] == 1
+    assert r2.json()["mails"][0]["is_read"] is False
+
+
+def test_mails_clean_unknown_filter(client):
+    h = {"Authorization": "Bearer " + _login(client).json()["token"]}
+    r = client.delete("/api/mails?filter=bogus", headers=h)
+    assert r.status_code == 400
+    assert r.json()["ok"] is False
+
+
+def test_mails_clean_requires_auth(client):
+    r = client.delete("/api/mails?filter=read")
+    assert r.json()["ok"] is False

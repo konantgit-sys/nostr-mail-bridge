@@ -25,19 +25,19 @@ def test_encrypt_decrypt_roundtrip(monkeypatch, tmp_path):
 
 
 def test_store_save_get_delete(client):
-    _login(client)
+    h = {"Authorization": "Bearer " + _login(client).json()["token"]}
     # не настроено
-    r = client.get("/api/imap/config")
+    r = client.get("/api/imap/config", headers=h)
     assert r.json()["ok"] is True and r.json()["configured"] is False
 
     # сохранить
     r = client.put("/api/imap/config", json={
         "host": "imap.mail.ru", "port": 993, "ssl": True,
-        "user": "user@mail.ru", "app_password": "app-pass-123"})
+        "user": "user@mail.ru", "app_password": "app-pass-123"}, headers=h)
     assert r.json()["ok"] is True
 
     # прочитать (пароль маской, has_password=true)
-    r = client.get("/api/imap/config")
+    r = client.get("/api/imap/config", headers=h)
     d = r.json()
     assert d["configured"] is True
     assert d["host"] == "imap.mail.ru" and d["user"] == "user@mail.ru"
@@ -46,19 +46,19 @@ def test_store_save_get_delete(client):
 
     # обновить без пароля → пароль сохраняется
     r = client.put("/api/imap/config", json={
-        "host": "imap.mail.ru", "port": 143, "ssl": False, "user": "user@mail.ru"})
+        "host": "imap.mail.ru", "port": 143, "ssl": False, "user": "user@mail.ru"}, headers=h)
     assert r.json()["ok"] is True
-    d = client.get("/api/imap/config").json()
+    d = client.get("/api/imap/config", headers=h).json()
     assert d["port"] == 143 and d["ssl"] is False and d["has_password"] is True
 
     # статус
-    st = client.get("/api/imap/status").json()
+    st = client.get("/api/imap/status", headers=h).json()
     assert st["configured"] is True and st["host"] == "imap.mail.ru"
 
     # удалить
-    r = client.delete("/api/imap/config")
+    r = client.delete("/api/imap/config", headers=h)
     assert r.json()["ok"] is True
-    assert client.get("/api/imap/config").json()["configured"] is False
+    assert client.get("/api/imap/config", headers=h).json()["configured"] is False
 
 
 def test_imap_requires_auth(client):
@@ -69,8 +69,8 @@ def test_imap_requires_auth(client):
 
 
 def test_imap_bad_body(client):
-    _login(client)
-    r = client.put("/api/imap/config", json={"host": "", "user": ""})
+    h = {"Authorization": "Bearer " + _login(client).json()["token"]}
+    r = client.put("/api/imap/config", json={"host": "", "user": ""}, headers=h)
     assert r.status_code == 400
 
 
