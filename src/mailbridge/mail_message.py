@@ -49,8 +49,10 @@ def build_mail(
 ) -> str:
     """Собирает RFC 2822 текст письма. Кидает ValueError при превышении лимита.
 
-    attachments: [{filename, mime, data_base64}] → multipart/mixed (RFC 2046),
-    base64 по 76 символов в строке. Совместимо с обычными почтовыми клиентами.
+    attachments: [{filename, mime, url}] → внешнее вложение по ссылке
+    (Blossom NIP-96, часть message/external-body по RFC 2017 + список
+    ссылок в конце текста — читается в любом клиенте);
+    [{filename, mime, data_base64}] → inline base64 (fallback, RFC 2046).
     """
     import base64
     import uuid
@@ -70,11 +72,31 @@ def build_mail(
         refs = references if isinstance(references, str) else " ".join(references)
         lines.append(f"References: {refs}")
 
+    url_atts = [a for a in (attachments or []) if a.get("url")]
+    b64_atts = [a for a in (attachments or []) if not a.get("url")]
+
     if attachments:
         boundary = f"nb-{uuid.uuid4().hex[:12]}"
         lines.append(f"Content-Type: multipart/mixed; boundary=\"{boundary}\"")
-        parts = [f"--{boundary}", "Content-Type: text/plain; charset=utf-8", "", (body or "")]
-        for att in attachments:
+        body_text = body or ""
+        if url_atts:
+            body_text += "\n\nВложения:\n" + "\n".join(
+                f"- {a.get('filename') or 'file'} ({a.get('mime') or 'application/octet-stream'}): {a['url']}"
+                for a in url_atts
+            )
+        parts = [f"--{boundary}", "Content-Type: text/plain; charset=utf-8", "", body_text]
+        for att in url_atts:
+            fname = (att.get("filename") or "file").replace('"', "'")
+            mime = att.get("mime") or "application/octet-stream"
+            parts += [
+                f"--{boundary}",
+                f'Content-Type: message/external-body; access-type=URL; URL="{att["url"]}"; name="{fname}"',
+                f'Content-Disposition: attachment; filename="{fname}"',
+                f"X-Attachment-Mime: {mime}",
+                "",
+                f"Файл: {fname} ({mime}). Скачать: {att['url']}",
+            ]
+        for att in b64_atts:
             fname = (att.get("filename") or "file").replace('"', "'")
             mime = att.get("mime") or "application/octet-stream"
             data = (att.get("data_base64") or "").replace("\n", "")
@@ -168,7 +190,7 @@ def _parse_parts(header_block: str, body: str) -> list[tuple[dict, str]]:
 
 
 def _part_to_attachment(ph: dict, pbody: str) -> dict | None:
-    """Часть multipart → {filename, mime, data_base64} или None."""
+    """Часть multipart → {filename, mime, data_base64|url} или None."""
     import base64
     import re
 
@@ -183,6 +205,18 @@ def _part_to_attachment(ph: dict, pbody: str) -> dict | None:
         if fm2:
             fname = fm2.group(1).strip()
     mime = ctype.split(";")[0].strip() or "application/octet-stream"
+
+    # Blossom NIP-96: вложение по ссылке (message/external-body, RFC 2017)
+    if "message/external-body" in ctype.lower():
+        um = re.search(r'URL="?([^"\s]+)"?', ctype, re.IGNORECASE)
+        url = um.group(1) if um else None
+        if url:
+            return {"filename": fname or "file", "mime": mime, "url": url}
+        return None
+    loc = ph.get("content-location", "")
+    if loc.strip().startswith("http"):
+        return {"filename": fname or "file", "mime": mime, "url": loc.strip()}
+
     raw = "".join(pbody.split())
     try:
         decoded = base64.b64decode(raw)

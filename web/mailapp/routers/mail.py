@@ -29,6 +29,27 @@ from ..db import connect, execute, query
 from ..auth import _authed, auth_error, display_address, login as do_login, logout as do_logout, register as do_register
 from .. import bridge as bridge_mod
 
+
+def upload_internal_caller(fname: str, mime: str, data_b64: str, owner: str) -> dict:
+    """Загружает вложение на Blossom напрямую (без HTTP-петли).
+
+    Вызывается из send_mail_api: файл (base64 от веб-клиента) → _save →
+    {url, sha256, mime, filename}. Кидает RuntimeError при ошибке.
+    """
+    import base64 as _b64
+    from .blossom import _save
+    try:
+        data = _b64.b64decode((data_b64 or "").strip())
+    except Exception:
+        raise RuntimeError("invalid base64")
+    try:
+        res = _save(data, owner)
+    except ValueError as e:
+        raise RuntimeError(str(e))
+    res["filename"] = fname
+    res["mime"] = mime
+    return res
+
 router = APIRouter()
 
 
@@ -301,22 +322,33 @@ def send_mail_api(body: SendBody, req: Request):
         if not owner_info or not owner_info.get("nsec_hex"):
             return JSONResponse({"ok": False, "error": "unknown owner"}, status_code=400)
 
-        # вложения: базовые проверки (количество, размер)
+        # вложения: базовые проверки (количество, размер), затем Blossom-upload
         atts = []
         total_b64 = 0
         for a in body.attachments or []:
             fname = (a.get("filename") or "")[:120]
             data = (a.get("data_base64") or "")
-            if not fname or not data:
+            if not fname and not data:
                 continue
-            total_b64 += len(data)
-            max_b64 = cfg.LIMITS["max_attachment_size_mb"] * 1024 * 1024 * 4 // 3  # base64-размер
-            if len(data) > max_b64:
-                return JSONResponse(
-                    {"ok": False, "error": f"вложение {fname} больше лимита {cfg.LIMITS['max_attachment_size_mb']} МБ"},
-                    status_code=413,
-                )
-            atts.append({"filename": fname, "mime": a.get("mime") or "application/octet-stream", "data_base64": data})
+            if fname and data:
+                total_b64 += len(data)
+                max_b64 = cfg.LIMITS["max_attachment_size_mb"] * 1024 * 1024 * 4 // 3  # base64-размер
+                if len(data) > max_b64:
+                    return JSONResponse(
+                        {"ok": False, "error": f"вложение {fname} больше лимита {cfg.LIMITS['max_attachment_size_mb']} МБ"},
+                        status_code=413,
+                    )
+                # NIP-96: файл → Blossom (наш /api/blossom/upload), в письме — ссылка
+                try:
+                    up = upload_internal_caller(fname, a.get("mime") or "application/octet-stream", data, own)
+                except RuntimeError as e:
+                    return JSONResponse({"ok": False, "error": f"Blossom upload: {e}"}, status_code=502)
+                atts.append({"filename": fname, "mime": up.get("mime"),
+                             "url": up.get("url"), "sha256": up.get("sha256")})
+            elif fname and a.get("url"):
+                # уже загружено (клиент загрузил сам) — пропускаем проверку размера
+                atts.append({"filename": fname, "mime": a.get("mime") or "application/octet-stream",
+                             "url": a.get("url"), "sha256": a.get("sha256", "")})
         if len(atts) > cfg.LIMITS["max_attachments_per_mail"]:
             return JSONResponse({"ok": False, "error": f"максимум {cfg.LIMITS['max_attachments_per_mail']} вложений"}, status_code=400)
 

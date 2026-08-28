@@ -20,7 +20,7 @@
 - Метаданные скрыты **NIP-59**: внешнее событие kind:1059 (gift wrap) → внутреннее kind:14
 - Шифрование: NIP-44 v2 (ECDH secp256k1 + HKDF + ChaCha20 + HMAC-SHA256, base64)
 - Адрес: `npub_hex@snin-mail.v2.site` — сопоставление по NIP-05-подобной записи
-- Лимит: 64KB на письмо (совместимость с официальными клиентами); вложения — Blossom (позже)
+- Лимит: 64KB на письмо (совместимость с официальными клиентами); вложения — Blossom (NIP-96) ✅ (2026-08-28): файл → snin-mail.v2.site/media/<sha256>, в письме — ссылка (message/external-body). Лимит снят для вложений
 
 ## Фазы
 
@@ -30,7 +30,7 @@
 | 0.2 | NIP-59 gift wrap (распаковка kind:1059→14) | распаковывается реальное событие от Nmail |
 | 1 | Демон `mail_bridge.py`: подписка kind:1301/1059 на наши npub → расшифровка → RFC 2822 → SQLite → уведомление в Octopus | ✅ письмо из Nostr появилось в inbox + Telegram |
 | 2 | Веб-inbox: чтение/ответ/поиск | ✅ сквозной контур: публикация → inbox → веб |
-| 3 | Адреса агентам (паспорта SNIN), пост «у меня есть почта», вкладка на дашборде | ✅ 13 ящиков (Крайтер, V2Bot, Алекс + 10 агентов из реестра паспортов), NIP-05 резолвится (14 имён), E2E: внешнее письмо → ящик director_ai ✅, пост EN+RU на 3 релеях, вкладка на cryter-dash ONLINE. Исключение: axiom, cryptoantology — приватные ключи повреждены в .secure (36B вместо 32B), ящики не выданы |
+| 3 | Адреса агентам (паспорта SNIN), пост «у меня есть почта», вкладка на дашборде | ✅ 15 ящиков агентов + тестовый (16 accounts: Крайтер, V2Bot, Алекс, aporialab, creator, analyst_ai, director_ai, executor_ai, marketing_ai, security_ai, strategist_ai, support_ai, rd_ai, axiom, cryptoantology), NIP-05 резолвится (16 имён), E2E: внешнее письмо → ящик director_ai ✅, пост EN+RU на 3 релеях, вкладка на cryter-dash ONLINE. axiom/cryptoantology: ключи НАЙДЕНЫ в .secure/*.json (hex_private, совпадают с паспортами) — ящики выданы 2026-08-28 |
 | 4 (опц.) | SMTP-мост (Mailgun/SES) — письма на обычный email | ⏳ не начато, нужен внешний провайдер |
 
 ## Контур проверки (до «готово»)
@@ -90,3 +90,5 @@
 - Исходники: web/ (app.py, static/, tests/, config.example.json — без секретов).
 - Тесты: tests/test_api.py — 19 шт (авторизация, CRUD, валидация, NIP-05).
   Запуск: NO_BRIDGE=1 PYTHONPATH=../src:../deps python3 -m pytest web/tests/ -v
+
+| 3.5 | Blossom-вложения (NIP-96) — свой сервер + клиент | ✅ 2026-08-28: POST /upload (NIP-98 auth kind 27235), GET /media/<sha256>, DELETE, внутренний /api/blossom/upload (session), лимит 20MB. Вложения писем = ссылка (message/external-body, RFC 2017), E2E: письмо 300KB → файл скачивается ✅. 7 тестов blossom (47 всего) |

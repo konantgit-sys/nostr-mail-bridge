@@ -98,13 +98,16 @@ Mail.backToList = function () {
 Mail.renderAttachList = function (atts) {
   const rows = atts.map((a, i) => {
     const size = a.data_base64 ? Math.round((a.data_base64.length * 3) / 4) : 0;
-    const isImg = (a.mime || "").startsWith("image/") && a.data_base64;
-    const preview = isImg
+    const isImgInline = (a.mime || "").startsWith("image/") && a.data_base64;
+    const isImgUrl = (a.mime || "").startsWith("image/") && a.url;
+    const preview = isImgInline
       ? `<img class="attach-preview-img" src="data:${a.mime};base64,${a.data_base64}" alt="${Mail.esc(a.filename)}" data-i="${i}" title="Открыть ${Mail.esc(a.filename)}">`
-      : "";
+      : (isImgUrl
+        ? `<img class="attach-preview-img" src="${Mail.esc(a.url)}" alt="${Mail.esc(a.filename)}" data-i="${i}" title="Открыть ${Mail.esc(a.filename)}">`
+        : "");
     return `${preview}<button type="button" class="attach-download" data-i="${i}">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
-      ${Mail.esc(a.filename)} <span class="attach-size">${size} Б</span>
+      ${Mail.esc(a.filename)} <span class="attach-size">${size ? size + " Б" : "Blossom"}</span>
     </button>`;
   }).join("");
   return `<div class="mail-attachments"><div class="attachments-title">Вложения</div><div class="attachments-list">${rows}</div></div>`;
@@ -114,6 +117,16 @@ Mail.downloadAttachment = function (idx) {
   const m = Mail.STATE.current;
   if (!m || !m.attachments || !m.attachments[idx]) return;
   const a = m.attachments[idx];
+  if (a.url) {
+    const link = document.createElement("a");
+    link.href = a.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return;
+  }
   try {
     const bytes = atob(a.data_base64);
     const arr = new Uint8Array(bytes.length);

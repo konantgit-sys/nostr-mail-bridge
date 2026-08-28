@@ -44,4 +44,4 @@ rd_ai, security_ai, strategist_ai, support_ai. Все резолвятся по 
 
 ## Открытые вопросы
 
-- Blossom-вложения (NIP-96) — загрузка файлов, а не base64 в письме
+- Blossom-вложения (NIP-96) ✅ (2026-08-28): snin-mail.v2.site/media/<sha256>, /upload с NIP-98 auth, лимит 20MB
