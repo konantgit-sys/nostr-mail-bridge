@@ -7,7 +7,445 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h7l-2 8 10-12h-7l2-8z' fill='%2300d4ff'/%3E%3C/svg%3E">
 <meta name="theme-color" content="#0a0a0f">
 <meta name="description" content="SNIN Mail — приватная децентрализованная почта поверх Nostr (kind:1301, NIP-59)">
-<link rel="stylesheet" href="/static/style.css?v=6">
+<style>
+/* Nostr Mail — дизайн v2 (2026-08-26)
+   По правилам design-rules.md: кастомные easing, <300ms,
+   :active scale(0.97), без scale(0), без transition:all,
+   только transform+opacity, reduced-motion, hover-gate. */
+
+:root {
+  --bg: #0a0a0f;
+  --bg-soft: #101018;
+  --card: #15151f;
+  --card-hover: #1b1b28;
+  --border: #23233a;
+  --text: #e8ecf8;
+  --muted: #8a90a8;
+  --accent: #00d4ff;
+  --accent-2: #f5a623;
+  --danger: #ff3355;
+  --success: #34d399;
+  --bolt-glow: 0 0 18px rgba(0, 212, 255, 0.35);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --radius: 14px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(255, 51, 85, 0.10), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(0, 212, 255, 0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+.app { max-width: 760px; margin: 0 auto; padding: 18px 16px 64px; min-height: 100vh; }
+
+/* ── шапка ─────────────────────────────────────────── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 20px;
+}
+.logo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo svg { color: var(--accent); flex-shrink: 0; }
+.logo-bolt { filter: drop-shadow(var(--bolt-glow)); }
+.btn-help {
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  font-weight: 800; font-size: 15px; color: var(--accent);
+  border: 1px solid rgba(0, 212, 255, 0.3); background: rgba(0, 212, 255, 0.06);
+  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.btn-help:hover { background: rgba(0, 212, 255, 0.14); border-color: rgba(0, 212, 255, 0.6); }
+.btn-help:active { transform: scale(0.92); }
+.logo-badge {
+  display: inline-block; margin-left: 6px; vertical-align: 2px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em;
+  color: var(--accent); background: rgba(0, 212, 255, 0.10);
+  border: 1px solid rgba(0, 212, 255, 0.28); border-radius: 5px;
+  padding: 2px 5px 1px;
+}
+.logo-text { display: flex; flex-direction: column; min-width: 0; }
+.logo-title { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+.logo-sub {
+  background: none; border: none; color: var(--muted); font-size: 11.5px;
+  font-family: inherit; cursor: pointer; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw;
+  padding: 0; transition: color 160ms var(--ease-out);
+}
+.logo-sub:hover { color: var(--accent); }
+.logo-sub:active { transform: scale(0.97); }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ln {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(52, 211, 153, 0.10); border: 1px solid rgba(52, 211, 153, 0.25);
+  color: var(--success); font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+}
+
+/* ── кнопки ────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  padding: 9px 16px; border-radius: 10px;
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out),
+              border-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: none; color: #06121f; box-shadow: 0 4px 18px rgba(34, 211, 238, 0.22);
+}
+.btn-ghost { background: transparent; }
+.btn-block { width: 100%; }
+.btn-danger { color: var(--danger); }
+.btn-danger.armed { background: rgba(248, 113, 113, 0.14); border-color: rgba(248, 113, 113, 0.5); }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  padding: 6px; border-radius: 8px;
+  transition: transform 160ms var(--ease-out), color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.btn-icon:hover { color: var(--text); background: var(--card-hover); }
+.btn-icon:active { transform: scale(0.92); }
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:not(:disabled):hover { background-color: var(--card-hover); border-color: #32415f; }
+  .btn-primary:not(:disabled):hover { filter: brightness(1.08); }
+  .mail-item:hover { background: var(--card-hover); }
+}
+
+/* ── инструкция ───────────────────────────────────── */
+.help-modal {
+  width: min(560px, 92vw); max-height: 78vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 20px;
+  animation: help-in 240ms var(--ease-out);
+}
+@keyframes help-in {
+  from { opacity: 0; transform: scale(0.95) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.help-body h3 { font-size: 14px; margin: 14px 0 4px; color: var(--accent); }
+.help-body h3:first-child { margin-top: 4px; }
+.help-body p { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin-bottom: 4px; }
+.help-body code {
+  background: rgba(0, 212, 255, 0.09); color: var(--accent);
+  padding: 1px 6px; border-radius: 5px; font-size: 12.5px;
+  word-break: break-all;
+}
+
+/* ── аватары писем ─────────────────────────────────── */
+.mail-item { display: flex; align-items: flex-start; gap: 12px; }
+.avatar {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; color: #0a0a0f;
+  user-select: none; margin-top: 2px;
+}
+.mail-item-main { min-width: 0; flex: 1; }
+.attach-preview-img {
+  max-width: 100%; max-height: 260px; border-radius: 10px;
+  border: 1px solid var(--border); margin: 6px 0; display: block;
+  cursor: zoom-in; transition: transform 160ms var(--ease-out);
+}
+.attach-preview-img:hover { transform: scale(1.01); }
+.attach-preview-img:active { transform: scale(0.99); }
+
+/* stagger появления списка */
+.mail-item { animation: none; }
+
+/* ── логин ─────────────────────────────────────────── */
+.login { display: flex; align-items: center; justify-content: center; min-height: 72vh; }
+.login-card {
+  width: 100%; max-width: 360px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 30px 26px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 12px; text-align: center;
+  opacity: 1; transform: none;
+}
+@keyframes login-in {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.login-icon {
+  filter: drop-shadow(var(--bolt-glow));
+  animation: bolt-pulse 2.6s var(--ease-in-out) infinite;
+}
+@keyframes bolt-pulse {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.25)); }
+  50%      { filter: drop-shadow(0 0 22px rgba(0, 212, 255, 0.55)); }
+}
+.login-icon {
+  width: 60px; height: 60px; margin: 0 auto; border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(139, 92, 246, 0.16));
+  color: var(--accent);
+}
+.login-card h1 { font-size: 21px; letter-spacing: -0.02em; }
+.muted { color: var(--muted); font-size: 13px; }
+
+/* ── поля ввода ────────────────────────────────────── */
+.input {
+  width: 100%; background: var(--bg-soft); border: 1px solid var(--border);
+  color: var(--text); font: inherit; font-size: 14px;
+  padding: 11px 14px; border-radius: 10px; outline: none;
+  transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14); }
+.textarea { resize: vertical; min-height: 140px; line-height: 1.55; }
+.error { color: var(--danger); font-size: 13px; text-align: left; }
+
+/* ── тулбар ────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.tabs { display: flex; gap: 4px; background: var(--bg-soft); padding: 4px; border-radius: 12px; border: 1px solid var(--border); }
+.tab {
+  background: none; border: none; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 9px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: transform 160ms var(--ease-out), color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.tab:active { transform: scale(0.96); }
+.tab.active { background: var(--card); color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.badge {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #06121f; font-size: 11px; font-weight: 700; border-radius: 999px;
+  padding: 1px 7px; min-width: 20px; text-align: center;
+}
+.toolbar-right { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+.search { position: relative; flex: 1; max-width: 220px; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.search-input { padding-left: 34px; }
+
+/* ── список писем ──────────────────────────────────── */
+.mail-list { display: flex; flex-direction: column; gap: 8px; }
+.mail-item {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 13px 16px; cursor: pointer;
+  transition: transform 160ms var(--ease-out), opacity 240ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.mail-item:active { transform: scale(0.99); }
+.mail-item.unread { border-left: 3px solid var(--accent); }
+.mail-item-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.mail-item-from {
+  font-size: 13.5px; font-weight: 600; color: var(--text);
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mail-item.unread .mail-item-from { color: var(--accent); }
+.mail-item-date { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.mail-item-subject { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-item.unread .mail-item-subject { font-weight: 600; }
+.unread-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent); box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+
+/* ── пустые состояния ──────────────────────────────── */
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  color: var(--muted); text-align: center; padding: 60px 20px; font-size: 14px;
+}
+.empty svg { color: #33415c; }
+.empty code {
+  background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px;
+  padding: 3px 8px; font-size: 12px; color: var(--accent); word-break: break-all;
+}
+
+/* ── деталь письма ─────────────────────────────────── */
+.detail { display: flex; flex-direction: column; gap: 14px; }
+.detail-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.detail-actions { display: flex; gap: 8px; }
+.detail-actions.bottom { justify-content: flex-end; }
+.mail-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px 22px 26px;
+}
+.mail-card-head { display: flex; gap: 14px; margin-bottom: 18px; }
+.mail-avatar {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 18px; color: #06121f;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.mail-card-meta { min-width: 0; }
+.mail-card h2 { font-size: 19px; letter-spacing: -0.02em; margin-bottom: 10px; word-break: break-word; }
+.mail-meta { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted); }
+.mail-meta b { color: var(--text); font-weight: 600; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; color: var(--text); }
+.mail-body {
+  white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.65;
+  border-top: 1px solid var(--border); padding-top: 18px; color: #d8e0ee;
+}
+
+/* ── композер ──────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(4, 8, 16, 0.66); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.compose {
+  width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 12px;
+  opacity: 0; transform: scale(0.95);
+  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+  transform-origin: center;
+}
+.compose.compose-in { opacity: 1; transform: scale(1); }
+.compose-head { display: flex; align-items: center; justify-content: space-between; }
+.compose-head h2 { font-size: 18px; letter-spacing: -0.02em; }
+.compose-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.compose-hint { color: var(--muted); font-size: 12px; margin-right: auto; }
+
+/* ── тост ──────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; z-index: 100;
+  transform: translateX(-50%) translateY(20px); opacity: 0;
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  font-size: 14px; font-weight: 500; padding: 11px 20px; border-radius: 999px;
+  box-shadow: var(--shadow); pointer-events: none; max-width: 88vw; text-align: center;
+  transition: transform 240ms var(--ease-out), opacity 240ms var(--ease-out);
+}
+.toast-visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast[data-kind="err"] { border-color: rgba(248, 113, 113, 0.5); color: var(--danger); }
+.toast[data-kind="warn"] { border-color: rgba(251, 191, 36, 0.5); color: #fbbf24; }
+
+/* ── адаптив ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  .app { padding: 14px 12px 80px; }
+  .logo-sub { max-width: 40vw; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar-right { justify-content: stretch; }
+  .search { max-width: none; }
+  .btn-compose { flex: 1; }
+  .mail-item { padding: 14px 14px; }
+  .mail-card { padding: 18px 16px; }
+  .detail-top { flex-wrap: wrap; }
+  .compose { padding: 18px 16px; }
+}
+
+/* ── reduced motion ────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .mail-item, .mail-card, .compose, .login-card, .toast { transition: none !important; transform: none !important; opacity: 1 !important; }
+}
+
+/* переключатель ящиков (мульти-аккаунт) */
+.account-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-2, #16181d);
+  color: var(--text, #e6e9ef);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  padding: 7px 30px 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.account-switch:hover { border-color: var(--accent, #4f9cf9); }
+.account-switch:active { transform: scale(0.97); }
+.account-switch option { background: var(--bg-2, #16181d); color: var(--text, #e6e9ef); }
+@media (prefers-reduced-motion: reduce) {
+  .account-switch { transition: none; }
+  .account-switch:active { transform: none; }
+}
+
+/* вложения: чипы в композере + список в деталях */
+.compose-attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-2, #16181d); border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 999px; padding: 4px 10px; font-size: 12.5px; color: var(--text, #e6e9ef);
+}
+.attach-chip svg { flex-shrink: 0; opacity: 0.7; }
+.attach-size { opacity: 0.55; font-size: 11.5px; }
+.attach-remove {
+  background: none; border: 0; color: var(--muted, #888); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 50%;
+  transition: color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+.attach-remove:hover { color: var(--danger, #ff5c5c); }
+.attach-remove:active { transform: scale(0.9); }
+.mail-attachments {
+  margin-top: 14px; border-top: 1px solid var(--border, rgba(255,255,255,0.08)); padding-top: 12px;
+}
+.attachments-title { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.55; margin-bottom: 8px; }
+.attachments-list { display: flex; flex-direction: column; gap: 6px; }
+.attach-download {
+  display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  background: var(--bg-2, #16181d); border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px; padding: 7px 12px; font-size: 13px; color: var(--text, #e6e9ef);
+  cursor: pointer; transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.attach-download:hover { border-color: var(--accent, #4f9cf9); }
+.attach-download:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .attach-remove, .attach-download { transition: none; }
+  .attach-download:active, .attach-remove:active { transform: none; }
+}
+
+/* IMAP-настройки (вкладка «Входящие (IMAP)») */
+.imap-settings { padding: 18px 4px; }
+.imap-card { max-width: 520px; background: var(--bg-card, #1c1f26); border: 1px solid var(--border, #2a2e37); border-radius: 14px; padding: 20px; }
+.imap-title { font-size: 17px; margin: 0 0 6px; }
+.imap-sub { font-size: 13px; opacity: .75; margin: 0 0 16px; line-height: 1.5; }
+.imap-form { display: flex; flex-direction: column; gap: 12px; }
+.imap-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; opacity: .85; }
+.imap-row { display: flex; gap: 14px; align-items: flex-end; }
+.imap-narrow { width: 130px; }
+.imap-check { display: flex; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 9px; }
+.imap-actions { display: flex; gap: 10px; margin-top: 6px; }
+.imap-status { margin-top: 14px; font-size: 13px; line-height: 1.55; padding: 10px 12px; background: var(--bg-inset, #14161b); border-radius: 10px; }
+.imap-err { color: #ff7a7a; }
+.imap-hint { font-size: 12px; opacity: .6; margin: 12px 0 0; }
+
+/* ── переключатель способа входа (пароль / nsec) ─────── */
+.login-mode {
+  display: flex; gap: 6px; padding: 3px;
+  background: var(--bg-soft, #101018); border: 1px solid var(--border, #1e2a41);
+  border-radius: 12px;
+}
+.mode-btn {
+  flex: 1; padding: 8px 10px; border: none; border-radius: 9px;
+  background: transparent; color: var(--muted, #8a93a6);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 240ms var(--ease-out, cubic-bezier(0.23,1,0.32,1)), color 240ms var(--ease-out, cubic-bezier(0.23,1,0.32,1));
+}
+.mode-btn:active { transform: scale(0.97); }
+.mode-btn.active {
+  background: var(--card-hover, #141c2e); color: var(--accent, #4f8cff);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode-btn { transition: none; }
+}
+
+</style>
 </head>
 <body>
 <div class="app" id="app">
@@ -37,8 +475,13 @@
       </div>
       <h1>Вход в почту</h1>
       <p class="muted">SNIN Mail — приватная почта в Nostr</p>
+      <div class="login-mode" role="tablist" aria-label="Способ входа">
+        <button type="button" class="mode-btn active" id="mode-pass" role="tab" aria-selected="true">По паролю</button>
+        <button type="button" class="mode-btn" id="mode-nsec" role="tab" aria-selected="false">По nsec</button>
+      </div>
       <input type="text" id="login-addr" class="input" placeholder="npub или адрес (npub@домен)" autocomplete="username" autofocus>
       <input type="password" id="login-pass" class="input" placeholder="Пароль" autocomplete="current-password">
+      <input type="password" id="login-nsec" class="input" placeholder="nsec1… (приватный ключ)" autocomplete="off" hidden>
       <button class="btn btn-primary btn-block" type="submit">Войти</button>
       <button class="btn btn-ghost btn-block" type="button" id="btn-show-register">Зарегистрировать ящик</button>
       <button class="btn btn-link btn-block" type="button" id="btn-show-reset" style="background:none;border:none;color:var(--accent,#4f8cff);cursor:pointer;font-size:13px;padding:6px">Забыли пароль?</button>
@@ -74,7 +517,7 @@
       <p class="muted">SNIN Mail — твой адрес <code>npub…@snin-mail.v2.site</code>. Приватный ключ (nsec) остаётся у тебя: мост использует его только для расшифровки твоих писем</p>
       <input type="text" id="reg-nsec" class="input" placeholder="nsec1…" autocomplete="off">
       <input type="text" id="reg-label" class="input" placeholder="Имя (необязательно)">
-      <input type="password" id="reg-pass" class="input" placeholder="Пароль (мин. 6 символов)" autocomplete="new-password">
+      <input type="password" id="reg-pass" class="input" placeholder="Пароль (необязательно, мин. 6)" autocomplete="new-password">
       <button class="btn btn-primary btn-block" type="submit">Создать ящик</button>
       <button class="btn btn-ghost btn-block" type="button" id="btn-show-login">← Вход</button>
       <p class="error" id="register-error" hidden></p>
@@ -87,6 +530,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="inbox" id="tab-inbox">Входящие <span class="badge" id="inbox-count" hidden>0</span></button>
         <button class="tab" data-tab="outbox" id="tab-outbox">Отправленные</button>
+        <button class="tab" data-tab="imap" id="tab-imap">Входящие (IMAP)</button>
       </div>
       <div class="toolbar-right">
         <div class="search" id="search-wrap">
@@ -135,6 +579,39 @@
     </section>
   </main>
 
+  <!-- IMAP: входящие из обычной почты (каждый подключает свой ящик) -->
+  <section class="imap-settings" id="imap-view" hidden>
+    <div class="imap-card">
+      <h2 class="imap-title">Входящие из обычной почты (IMAP)</h2>
+      <p class="imap-sub">Подключи любой IMAP-ящик (mail.ru, yandex.ru и др.) — его письма будут приходить прямо в этот SNIN-ящик. Нужен «пароль для внешних приложений» (app-пароль), не обычный.</p>
+      <form id="imap-form" class="imap-form">
+        <label class="imap-field">Хост
+          <input type="text" id="imap-host" class="input" placeholder="imap.mail.ru" autocomplete="off" spellcheck="false">
+        </label>
+        <div class="imap-row">
+          <label class="imap-field imap-narrow">Порт
+            <input type="number" id="imap-port" class="input" value="993" min="1" max="65535">
+          </label>
+          <label class="imap-check">
+            <input type="checkbox" id="imap-ssl" checked> SSL
+          </label>
+        </div>
+        <label class="imap-field">Логин (email)
+          <input type="text" id="imap-user" class="input" placeholder="you@mail.ru" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="imap-field">App-пароль
+          <input type="password" id="imap-pass" class="input" placeholder="пароль для внешних приложений" autocomplete="new-password">
+        </label>
+        <div class="imap-actions">
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+          <button type="button" class="btn btn-ghost btn-danger" id="imap-delete">Отключить</button>
+        </div>
+      </form>
+      <div class="imap-status" id="imap-status"></div>
+      <p class="imap-hint">Доставка: IMAP → шифрованное письмо (NIP-59) → релеи → ваш ящик. Проверка каждые 2 минуты.</p>
+    </div>
+  </section>
+
   <!-- Композер -->
   <div class="modal-backdrop" id="compose-backdrop" hidden>
     <form class="compose" id="compose-form">
@@ -175,7 +652,8 @@
         <h3>🔑 Вход</h3>
         <p>Открой <code>snin-mail.v2.site</code> → введи свой адрес <code>npub…@snin-mail.v2.site</code> и пароль. Адрес можно вводить и просто как <code>npub…</code>.</p>
         <h3>📦 Регистрация ящика</h3>
-        <p>«Зарегистрировать ящик» → свой <code>nsec1…</code> + пароль (мин. 6). Ключ остаётся у тебя: мост использует его только для расшифровки твоих писем. С одним ключом — один ящик.</p>
+        <p>«Зарегистрировать ящик» → свой <code>nsec1…</code> + пароль (необязательно). Ключ остаётся у тебя: мост использует его только для расшифровки твоих писем. С одним ключом — один ящик.</p>
+        <p><strong>Вход двумя способами:</strong> по адресу + паролю (удобно каждый день) ИЛИ сразу по <code>nsec</code> — переключатель на форме входа, как в NostrMail. Ключ заменяет и логин, и пароль: из него вычисляется твой адрес. Без пароля вход только по ключу.</p>
         <h3>🔄 Забыл пароль</h3>
         <p>«Забыли пароль?» → адрес + <code>nsec1…</code> + новый пароль. nsec доказывает, что ключ твой: чужим ключом пароль не сбросить.</p>
         <h3>✉️ Письма</h3>
@@ -186,17 +664,696 @@
         <p>Вход — только по паролю, сессия на сервере. Чужая cookie не пускает. Сброс пароля — только по владению ключом. Лимит регистраций: 50/час.</p>
         <h3>🌐 Внешние клиенты</h3>
         <p>Мост зарегистрирован по NIP-05 (<code>_smtp@snin-mail.v2.site</code>) — совместимые клиенты (nostrmail.org и др.) могут находить и писать на адреса <code>@snin-mail.v2.site</code>.</p>
+        <button type="button" class="btn btn-primary btn-block" id="btn-help-close2" style="margin-top:18px;padding:11px;font-size:14px;font-weight:600;">Понятно, закрыть</button>
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
-<script src="/static/js/core.js?v=6"></script>
-<script src="/static/js/api.js?v=6"></script>
-<script src="/static/js/inbox.js?v=6"></script>
-<script src="/static/js/detail.js?v=6"></script>
-<script src="/static/js/composer.js?v=6"></script>
-<script src="/static/js/main.js?v=6"></script>
+
+
+
+
+
+
+<script>
+/* Mail.core — namespace, хелперы: DOM, время, экранирование, тосты. */
+"use strict";
+window.Mail = window.Mail || {};
+
+Mail.$ = (id) => document.getElementById(id);
+
+Mail.esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+Mail.fmtDate = (ts) => {
+  if (!ts) return "";
+  return new Date(ts * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+};
+
+Mail.fmtAgo = (ts) => {
+  if (!ts) return "";
+  const diff = Date.now() / 1000 - ts;
+  if (diff < 60) return "только что";
+  if (diff < 3600) return Math.floor(diff / 60) + " мин назад";
+  if (diff < 86400) return Math.floor(diff / 3600) + " ч назад";
+  if (diff < 172800) return "вчера";
+  return new Date(ts * 1000).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
+};
+
+Mail.shortNpub = (npub) => {
+  if (!npub) return "";
+  return npub.length > 16 ? npub.slice(0, 10) + "…" + npub.slice(-6) : npub;
+};
+
+/* ── toast ─────────────────────────────────────────── */
+let toastTimer = null;
+Mail.showToast = (msg, kind = "ok") => {
+  const t = Mail.$("toast");
+  t.textContent = msg;
+  t.dataset.kind = kind;
+  t.classList.remove("toast-visible");
+  void t.offsetWidth; /* рестарт анимации */
+  t.classList.add("toast-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("toast-visible"), 2800);
+};
+
+/* Аватар: инициал + стабильный цвет по ключу (hash → hue). */
+Mail.avatarOf = function (addr) {
+  const key = (addr || "").split("@")[0] || "?";
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const ch = (addr && addr[0] === "n") ? key[5] || "N" : (key[0] || "?").toUpperCase();
+  return { ch, bg: `linear-gradient(135deg, hsl(${hue} 72% 58%), hsl(${(hue + 40) % 360} 72% 44%))` };
+};
+
+/* Mail.api — транспорт: fetch с авторизацией, views, статус, авто-обновление. */
+"use strict";
+
+Mail.STATE = Mail.STATE || {};
+Mail.STATE.token = localStorage.getItem("nm_token") || "";
+
+Mail.api = async function (path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (Mail.STATE.token) headers["Authorization"] = "Bearer " + Mail.STATE.token;
+  const res = await fetch(path, { ...opts, headers });
+  let data = {};
+  try { data = await res.json(); } catch (_) { /* 204/empty */ }
+  if (res.status === 401 || data.error === "auth") {
+    Mail.STATE.token = "";
+    localStorage.removeItem("nm_token");
+    Mail.showLogin();
+    throw new Error("auth");
+  }
+  return data;
+};
+
+Mail.showLogin = function () {
+  Mail.$("login-view").hidden = false;
+  Mail.$("register-view").hidden = true;
+  Mail.$("main-view").hidden = true;
+  Mail.stopRefresh();
+};
+
+Mail.showMain = function () {
+  Mail.$("login-view").hidden = true;
+  Mail.$("main-view").hidden = false;
+  Mail.startRefresh();
+};
+
+Mail.loadStatus = async function () {
+  // БЕЗ введённого пароля (localStorage-токена) не заходим в main —
+  // прокси v2.site подмешивает свою cookie, и без этой проверки
+  // браузер «входит без пароля» в чужой ящик (проверено 2026-08-26).
+  if (!Mail.STATE.token) {
+    Mail.showLogin();
+    return;
+  }
+  const s = await Mail.api("/api/status");
+  const accs = s.accounts || [];
+  const sel = Mail.$("account-switch");
+  const isAdmin = (s.me || {}).role === "admin";
+  if (isAdmin && accs.length > 1) {
+    sel.hidden = false;
+    sel.innerHTML = accs.map((a) => `<option value="${Mail.esc(a.pubkey)}">${Mail.esc(a.label)}</option>`).join("");
+    const saved = localStorage.getItem("mail_owner");
+    Mail.STATE.owner = accs.some((a) => a.pubkey === saved) ? saved : (s.default_owner || accs[0].pubkey);
+    sel.value = Mail.STATE.owner;
+  } else if (accs.length === 1) {
+    Mail.STATE.owner = accs[0].pubkey;
+  } else {
+    Mail.STATE.owner = "";
+  }
+  const cur = accs.find((a) => a.pubkey === Mail.STATE.owner) || accs[0] || {};
+  Mail.$("mail-address").textContent = cur.address || s.address || "—";
+  Mail.$("ln-addr").textContent = s.lightning || "—";
+  Mail.$("empty-addr").textContent = cur.address || "";
+  Mail.$("btn-logout").hidden = !s.ok;
+  if (s.ok) Mail.showMain(); else Mail.showLogin();
+  return s;
+};
+
+Mail.setAccount = async function (owner) {
+  Mail.STATE.owner = owner;
+  localStorage.setItem("mail_owner", owner);
+  const s = await Mail.api("/api/status");
+  const cur = (s.accounts || []).find((a) => a.pubkey === owner) || {};
+  Mail.$("mail-address").textContent = cur.address || s.address || "—";
+  Mail.$("empty-addr").textContent = cur.address || "";
+  await Mail.loadMails();
+};
+
+Mail.copyAddress = async function () {
+  const addr = Mail.$("mail-address").textContent;
+  if (!addr || addr === "—") return;
+  try {
+    await navigator.clipboard.writeText(addr);
+    Mail.showToast("Адрес скопирован 📋");
+  } catch (_) {
+    Mail.showToast(addr, "ok");
+  }
+};
+
+/* ── авто-обновление (30с, только входящие на виду) ── */
+let refreshTimer = null;
+Mail.startRefresh = function () {
+  Mail.stopRefresh();
+  refreshTimer = setInterval(() => {
+    if (document.hidden) return;
+    if (Mail.STATE.tab === "inbox" && !Mail.$("list-view").hidden) Mail.loadMails();
+  }, 30000);
+};
+Mail.stopRefresh = function () {
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+};
+
+/* Mail.inbox — загрузка и рендер списка (входящие/исходящие), поиск, вкладки. */
+"use strict";
+
+Mail.loadMails = async function () {
+  try {
+    const d = await Mail.api("/api/mails?owner=" + encodeURIComponent(Mail.STATE.owner || ""));
+    Mail.STATE.mails = d.mails || [];
+  } catch (_) { return; }
+  if (Mail.STATE.tab === "inbox") Mail.renderList();
+};
+
+Mail.loadOutbox = async function () {
+  try {
+    const d = await Mail.api("/api/outbox?owner=" + encodeURIComponent(Mail.STATE.owner || ""));
+    Mail.STATE.outbox = d.outbox || [];
+  } catch (_) { return; }
+  if (Mail.STATE.tab === "outbox") Mail.renderList();
+};
+
+Mail.visibleItems = function () {
+  if (Mail.STATE.tab === "outbox") {
+    return Mail.STATE.outbox.filter((m) => {
+      if (!Mail.STATE.query) return true;
+      const q = Mail.STATE.query.toLowerCase();
+      return (m.subject || "").toLowerCase().includes(q) || (m.body || "").toLowerCase().includes(q) || (m.to || "").toLowerCase().includes(q);
+    });
+  }
+  return Mail.STATE.mails.filter((m) => {
+    if (!Mail.STATE.query) return true;
+    const q = Mail.STATE.query.toLowerCase();
+    return (m.subject || "").toLowerCase().includes(q) || (m.body || "").toLowerCase().includes(q) || (m.from || "").toLowerCase().includes(q);
+  });
+};
+
+Mail.renderList = function () {
+  const list = Mail.$("mail-list");
+  const emptyInbox = Mail.$("empty-inbox");
+  const emptySearch = Mail.$("empty-search");
+  const isOutbox = Mail.STATE.tab === "outbox";
+
+  const unread = Mail.STATE.mails.filter((m) => !m.is_read).length;
+  Mail.$("inbox-count").textContent = unread;
+  Mail.$("inbox-count").hidden = !unread;
+
+  const items = Mail.visibleItems();
+  emptySearch.hidden = true;
+  emptyInbox.hidden = true;
+  if (!items.length) {
+    list.innerHTML = "";
+    if (Mail.STATE.query) emptySearch.hidden = false;
+    else if (!isOutbox) emptyInbox.hidden = false;
+    else {
+      emptyInbox.querySelector("p").innerHTML = "Пока ничего не отправлено.<br>Напишите первое письмо!";
+      emptyInbox.hidden = false;
+    }
+    return;
+  }
+
+  list.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  items.forEach((m) => {
+    const el = document.createElement("div");
+    const isUnread = isOutbox ? false : !m.is_read;
+    el.className = "mail-item" + (isUnread ? " unread" : "");
+    const who = isOutbox ? (m.to || "—") : (m.from || "—");
+    const when = isOutbox ? m.sent_at : m.received_at;
+    const av = Mail.avatarOf(who);
+    el.innerHTML =
+      `<div class="avatar" style="background:${av.bg}" aria-hidden="true">${av.ch}</div>
+       <div class="mail-item-main">
+         <div class="mail-item-top">
+           <span class="mail-item-from">${Mail.esc(Mail.shortNpub(who))}${isUnread ? '<span class="unread-dot" aria-hidden="true"></span>' : ""}</span>
+           <span class="mail-item-date">${Mail.fmtAgo(when)}</span>
+         </div>
+         <div class="mail-item-subject">${Mail.esc(m.subject || "(без темы)")}</div>
+       </div>`;
+    el.addEventListener("click", () => Mail.openMail(m.id, isOutbox));
+    frag.appendChild(el);
+  });
+  list.appendChild(frag);
+};
+
+/* вкладки */
+Mail.switchTab = async function (tabName) {
+  document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === tabName));
+  Mail.STATE.tab = tabName;
+  Mail.$("search").value = "";
+  Mail.STATE.query = "";
+  if (tabName === "outbox") await Mail.loadOutbox();
+  else await Mail.loadMails();
+};
+
+/* Mail.detail — открытие письма, прочитано/нет, удаление (2 клика), назад. */
+"use strict";
+
+Mail.openMail = async function (id, isOutbox = false) {
+  if (isOutbox) {
+    const m = Mail.STATE.outbox.find((x) => x.id === id);
+    if (!m) return;
+    Mail.STATE.current = { ...m, isOutbox: true, is_read: true, to: m.to };
+    Mail.$("list-view").hidden = true;
+    Mail.$("detail-view").hidden = false;
+    Mail.renderDetail();
+    return;
+  }
+  const d = await Mail.api("/api/mails/" + id);
+  if (!d.ok) return;
+  Mail.STATE.current = d.mail;
+  Mail.$("list-view").hidden = true;
+  Mail.$("detail-view").hidden = false;
+  Mail.renderDetail();
+  const item = Mail.STATE.mails.find((m) => m.id === id);
+  if (item) item.is_read = true;
+  const unread = Mail.STATE.mails.filter((m) => !m.is_read).length;
+  Mail.$("inbox-count").textContent = unread;
+  Mail.$("inbox-count").hidden = !unread;
+};
+
+Mail.renderDetail = function () {
+  const m = Mail.STATE.current;
+  const card = Mail.$("mail-card");
+  const who = m.isOutbox ? (m.to || "—") : (m.from || "—");
+  const when = m.isOutbox ? Mail.fmtDate(m.sent_at) : Mail.fmtDate(m.received_at);
+  card.innerHTML =
+    `<div class="mail-card-head">
+       <div class="mail-avatar">${Mail.esc((m.isOutbox ? "→" : (m.from || "?"))[0].toUpperCase())}</div>
+       <div class="mail-card-meta">
+         <h2>${Mail.esc(m.subject || "(без темы)")}</h2>
+         <div class="mail-meta">
+           <div><b>${m.isOutbox ? "Кому:" : "От:"}</b> <span class="mono">${Mail.esc(who)}</span></div>
+           ${m.isOutbox ? "" : `<div><b>Кому:</b> <span class="mono">${Mail.esc(m.to || "—")}</span></div>`}
+           <div><b>Когда:</b> ${when}</div>
+         </div>
+       </div>
+     </div>
+     <div class="mail-body">${Mail.esc(m.body)}</div>
+     ${(m.attachments && m.attachments.length) ? Mail.renderAttachList(m.attachments) : ""}`;
+  Mail.$("btn-unread").textContent = m.isOutbox ? "" : (m.is_read ? "Не прочитано" : "Прочитано");
+  Mail.$("btn-unread").hidden = !!m.isOutbox;
+};
+
+Mail.toggleRead = async function () {
+  const m = Mail.STATE.current;
+  if (!m || m.isOutbox) return;
+  const target = !m.is_read;
+  const r = await Mail.api(`/api/mails/${m.id}/read`, { method: "POST", body: JSON.stringify({ read: target }) });
+  if (!r.ok) { Mail.showToast(r.error || "Ошибка", "err"); return; }
+  m.is_read = target;
+  Mail.$("btn-unread").textContent = target ? "Не прочитано" : "Прочитано";
+  const item = Mail.STATE.mails.find((x) => x.id === m.id);
+  if (item) item.is_read = target;
+  Mail.showToast(target ? "Отмечено прочитанным" : "Отмечено непрочитанным");
+  Mail.renderList();
+};
+
+Mail.deleteMail = async function () {
+  const btn = Mail.$("btn-delete");
+  const now = Date.now();
+  if (now - Mail.STATE.deleteArm > 3000) {
+    Mail.STATE.deleteArm = now;
+    btn.textContent = "Точно удалить?";
+    btn.classList.add("armed");
+    Mail.showToast("Нажмите ещё раз для подтверждения", "warn");
+    setTimeout(() => { btn.textContent = "Удалить"; btn.classList.remove("armed"); }, 3000);
+    return;
+  }
+  const r = await Mail.api("/api/mails/" + Mail.STATE.current.id, { method: "DELETE" });
+  Mail.STATE.deleteArm = 0;
+  btn.textContent = "Удалить";
+  btn.classList.remove("armed");
+  if (!r.ok) { Mail.showToast(r.error || "Ошибка удаления", "err"); return; }
+  Mail.STATE.mails = Mail.STATE.mails.filter((m) => m.id !== Mail.STATE.current.id);
+  Mail.showToast("Письмо удалено");
+  Mail.backToList();
+};
+
+Mail.backToList = function () {
+  Mail.$("detail-view").hidden = true;
+  Mail.$("list-view").hidden = false;
+  Mail.STATE.current = null;
+  Mail.STATE.deleteArm = 0;
+  const btn = Mail.$("btn-delete");
+  btn.textContent = "Удалить";
+  btn.classList.remove("armed");
+  Mail.renderList();
+};
+
+
+/* ── вложения в письме ────────────────────────────────── */
+Mail.renderAttachList = function (atts) {
+  const rows = atts.map((a, i) => {
+    const size = a.data_base64 ? Math.round((a.data_base64.length * 3) / 4) : 0;
+    const isImgInline = (a.mime || "").startsWith("image/") && a.data_base64;
+    const isImgUrl = (a.mime || "").startsWith("image/") && a.url;
+    const preview = isImgInline
+      ? `<img class="attach-preview-img" src="data:${a.mime};base64,${a.data_base64}" alt="${Mail.esc(a.filename)}" data-i="${i}" title="Открыть ${Mail.esc(a.filename)}">`
+      : (isImgUrl
+        ? `<img class="attach-preview-img" src="${Mail.esc(a.url)}" alt="${Mail.esc(a.filename)}" data-i="${i}" title="Открыть ${Mail.esc(a.filename)}">`
+        : "");
+    return `${preview}<button type="button" class="attach-download" data-i="${i}">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+      ${Mail.esc(a.filename)} <span class="attach-size">${size ? size + " Б" : "Blossom"}</span>
+    </button>`;
+  }).join("");
+  return `<div class="mail-attachments"><div class="attachments-title">Вложения</div><div class="attachments-list">${rows}</div></div>`;
+};
+
+Mail.downloadAttachment = function (idx) {
+  const m = Mail.STATE.current;
+  if (!m || !m.attachments || !m.attachments[idx]) return;
+  const a = m.attachments[idx];
+  if (a.url) {
+    const link = document.createElement("a");
+    link.href = a.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return;
+  }
+  try {
+    const bytes = atob(a.data_base64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const blob = new Blob([arr], { type: a.mime || "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = a.filename || "file";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) {
+    Mail.showToast("Не удалось открыть вложение: " + e.message);
+  }
+};
+
+document.addEventListener("click", (ev) => {
+  const btn = ev.target.closest(".attach-download");
+  if (btn) Mail.downloadAttachment(Number(btn.dataset.i));
+});
+
+/* Mail.composer — открытие/закрытие композера, валидация, отправка. */
+"use strict";
+
+Mail.openComposer = function (title, to = "", subject = "", replyTo = "", body = "") {
+  Mail.$("compose-title").textContent = title;
+  Mail.$("compose-to").value = to;
+  Mail.$("compose-subject").value = subject;
+  Mail.$("compose-body").value = "";
+  Mail.$("compose-form").dataset.replyTo = replyTo || "";
+  Mail.$("compose-body").value = body || "";
+  Mail.$("compose-error").hidden = true;
+  const bd = Mail.$("compose-backdrop");
+  const form = Mail.$("compose-form");
+  form.classList.remove("compose-in");
+  bd.hidden = false;
+  form.classList.add("compose-in");
+  setTimeout(() => Mail.$("compose-to").focus(), 120);
+};
+
+Mail.closeComposer = function () {
+  Mail.$("compose-backdrop").hidden = true;
+  Mail.STATE.attach = [];
+  renderAttachments();
+};
+
+/* ── вложения ─────────────────────────────────────────── */
+Mail.STATE.attach = [];  // [{file, name, size, mime, dataUrl}]
+
+function fmtSize(n) {
+  if (n < 1024) return n + " Б";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " КБ";
+  return (n / 1048576).toFixed(1) + " МБ";
+}
+
+function renderAttachments() {
+  const box = Mail.$("compose-attachments");
+  if (!Mail.STATE.attach.length) { box.innerHTML = ""; box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = Mail.STATE.attach.map((a, i) =>
+    `<span class="attach-chip" data-i="${i}">
+       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+       ${Mail.esc(a.name)} <span class="attach-size">${fmtSize(a.size)}</span>
+       <button type="button" class="attach-remove" data-i="${i}" aria-label="Убрать">×</button>
+     </span>`).join("");
+  box.querySelectorAll(".attach-remove").forEach((b) =>
+    b.addEventListener("click", () => {
+      Mail.STATE.attach.splice(Number(b.dataset.i), 1);
+      renderAttachments();
+    })
+  );
+}
+
+Mail.$("btn-attach").addEventListener("click", () => Mail.$("attach-input").click());
+Mail.$("attach-input").addEventListener("change", (ev) => {
+  const files = [...ev.target.files].slice(0, 5 - Mail.STATE.attach.length);
+  const totalB64 = Mail.STATE.attach.reduce((s, a) => s + a.b64.length, 0);
+  for (const f of files) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = String(reader.result).split(",")[1] || "";
+      if (totalB64 + b64.length > 44000) { Mail.showToast("Вложения слишком большие (до ~33 КБ суммарно)"); return; }
+      Mail.STATE.attach.push({ name: f.name, size: f.size, mime: f.type || "application/octet-stream", b64 });
+      renderAttachments();
+    };
+    reader.readAsDataURL(f);
+  }
+  ev.target.value = "";
+});
+
+Mail.sendMail = async function (ev) {
+  ev.preventDefault();
+  const btn = Mail.$("btn-send");
+  const to = Mail.$("compose-to").value.trim();
+  const subject = Mail.$("compose-subject").value.trim();
+  const body = Mail.$("compose-body").value.trim();
+  const err = Mail.$("compose-error");
+
+  /* валидация */
+  if (!to) { err.textContent = "Укажите адресата (npub или npub@домен)"; err.hidden = false; Mail.$("compose-to").focus(); return; }
+  if (!/^(npub1[a-z0-9]{58,62})(@[^\s@]+)?$/i.test(to)) { err.textContent = "Адрес должен быть npub1… (или npub1…@домен)"; err.hidden = false; Mail.$("compose-to").focus(); return; }
+  if (!subject) { err.textContent = "Укажите тему письма"; err.hidden = false; Mail.$("compose-subject").focus(); return; }
+  if (!body) { err.textContent = "Напишите текст письма"; err.hidden = false; Mail.$("compose-body").focus(); return; }
+
+  btn.disabled = true;
+  btn.textContent = "Отправка…";
+  err.hidden = true;
+  try {
+    const attachments = (Mail.STATE.attach || []).map((a) => ({ filename: a.name, mime: a.mime, data_base64: a.b64 }));
+    const r = await Mail.api("/api/send", {
+      method: "POST",
+      body: JSON.stringify({ to_npub: to, subject, body, in_reply_to: Mail.$("compose-form").dataset.replyTo || "", owner: Mail.STATE.owner || "", attachments }),
+    });
+    if (!r.ok) throw new Error(r.error || "ошибка");
+    Mail.closeComposer();
+    Mail.showToast(r.published ? `Отправлено на ${r.published} релеев ✅` : "Письмо записано в исходящие ✅");
+    await Mail.switchTab("outbox");
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Отправить";
+  }
+};
+
+Mail.replyTo = function () {
+  if (!Mail.STATE.current) return;
+  const m = Mail.STATE.current;
+  const to = m.isOutbox ? "" : m.from;
+  const subject = (m.subject || "").startsWith("Re:") ? m.subject : "Re: " + (m.subject || "");
+  // цитата оригинала в тело ответа
+  const bodyLines = (m.body || "").split("\n").map((l) => "> " + l).join("\n");
+  const quote = bodyLines ? "\n\n" + bodyLines + "\n" : "";
+  Mail.openComposer("Ответ", to || "", subject, m.isOutbox ? "" : m.message_id, quote);
+};
+
+/* Mail.main — инициализация: STATE, события, старт. */
+"use strict";
+
+Mail.STATE = Object.assign(Mail.STATE || {}, { mails: [], outbox: [], tab: "inbox", current: null, query: "", deleteArm: 0, owner: "", attach: [] });
+
+/* ── события ─────────────────────────────────────────── */
+Mail.$("login-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const mode = Mail.STATE.loginMode === "nsec" ? "nsec" : "pass";
+  let payload;
+  if (mode === "nsec") {
+    payload = { nsec: Mail.$("login-nsec").value.trim() };
+  } else {
+    payload = { address: Mail.$("login-addr").value.trim(), password: Mail.$("login-pass").value };
+  }
+  const r = await Mail.api("/api/login", { method: "POST", body: JSON.stringify(payload) });
+  if (r.ok) {
+    Mail.$("login-pass").value = "";
+    Mail.$("login-nsec").value = "";
+    Mail.$("login-error").hidden = true;
+    if (r.token) { Mail.STATE.token = r.token; localStorage.setItem("nm_token", r.token); }
+    await Mail.loadStatus();
+    await Mail.loadMails();
+  } else {
+    Mail.$("login-error").textContent = mode === "nsec"
+      ? (r.error === "нет ящика для этого ключа — сначала зарегистрируйся" ? "Для этого ключа нет ящика — зарегистрируйся" : "Неверный ключ")
+      : (r.error === "unknown address" ? "Ящик с таким адресом не найден" : "Неверный пароль");
+    Mail.$("login-error").hidden = false;
+    (mode === "nsec" ? Mail.$("login-nsec") : Mail.$("login-pass")).select();
+  }
+});
+
+/* переключатель способа входа: пароль / nsec */
+function setLoginMode(mode) {
+  Mail.STATE.loginMode = mode;
+  const nsecMode = mode === "nsec";
+  Mail.$("login-addr").hidden = nsecMode;
+  Mail.$("login-pass").hidden = nsecMode;
+  Mail.$("login-nsec").hidden = !nsecMode;
+  Mail.$("mode-pass").classList.toggle("active", !nsecMode);
+  Mail.$("mode-nsec").classList.toggle("active", nsecMode);
+  Mail.$("mode-pass").setAttribute("aria-selected", String(!nsecMode));
+  Mail.$("mode-nsec").setAttribute("aria-selected", String(nsecMode));
+  (nsecMode ? Mail.$("login-nsec") : Mail.$("login-addr")).focus();
+}
+Mail.$("mode-pass").addEventListener("click", () => setLoginMode("pass"));
+Mail.$("mode-nsec").addEventListener("click", () => setLoginMode("nsec"));
+
+Mail.$("register-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const nsec = Mail.$("reg-nsec").value.trim();
+  const label = Mail.$("reg-label").value.trim();
+  const pass = Mail.$("reg-pass").value;
+  const r = await Mail.api("/api/register", { method: "POST", body: JSON.stringify({ nsec, label, password: pass }) });
+  if (r.ok) {
+    Mail.$("register-error").textContent = "";
+    Mail.$("register-error").hidden = true;
+    Mail.$("register-view").hidden = true;
+    Mail.$("login-view").hidden = false;
+    Mail.$("login-addr").value = r.address;
+    Mail.$("login-pass").value = "";
+    Mail.$("login-pass").focus();
+  } else {
+    const msg = r.error === "already registered" ? "Этот ключ уже зарегистрирован — войди" :
+                r.error === "invalid nsec" ? "Неверный nsec" :
+                r.error === "password too short" ? "Пароль короче 6 символов" : "Ошибка регистрации";
+    Mail.$("register-error").textContent = msg;
+    Mail.$("register-error").hidden = false;
+  }
+});
+
+Mail.$("btn-show-register").addEventListener("click", () => {
+  Mail.$("login-view").hidden = true;
+  Mail.$("register-view").hidden = false;
+  Mail.$("reg-nsec").focus();
+});
+Mail.$("btn-show-reset").addEventListener("click", () => {
+  Mail.$("login-view").hidden = true;
+  Mail.$("reset-view").hidden = false;
+});
+Mail.$("btn-reset-back").addEventListener("click", () => {
+  Mail.$("reset-view").hidden = true;
+  Mail.$("login-view").hidden = false;
+});
+Mail.$("reset-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const r = await Mail.api("/api/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      address: Mail.$("reset-addr").value.trim(),
+      nsec: Mail.$("reset-nsec").value.trim(),
+      new_password: Mail.$("reset-pass").value,
+    }),
+  });
+  if (r.ok) {
+    Mail.$("reset-error").hidden = true;
+    alert("Пароль сброшен. Войдите с новым паролем.");
+    Mail.$("reset-view").hidden = true;
+    Mail.$("login-view").hidden = false;
+    Mail.$("login-addr").value = Mail.$("reset-addr").value.trim();
+  } else {
+    Mail.$("reset-error").textContent = r.error || "Ошибка";
+    Mail.$("reset-error").hidden = false;
+  }
+});
+Mail.$("btn-show-login").addEventListener("click", () => {
+  Mail.$("register-view").hidden = true;
+  Mail.$("login-view").hidden = false;
+  Mail.$("login-addr").focus();
+});
+
+Mail.$("btn-logout").addEventListener("click", async () => {
+  await Mail.api("/api/logout", { method: "POST" }).catch(() => {});
+  Mail.STATE.token = "";
+  localStorage.removeItem("nm_token");
+  location.reload();
+});
+
+Mail.$("btn-compose").addEventListener("click", () => Mail.openComposer("Новое письмо"));
+Mail.$("account-switch").addEventListener("change", (ev) => Mail.setAccount(ev.target.value));
+Mail.$("btn-close").addEventListener("click", Mail.closeComposer);
+Mail.$("btn-cancel").addEventListener("click", Mail.closeComposer);
+Mail.$("compose-backdrop").addEventListener("click", (ev) => {
+  if (ev.target === Mail.$("compose-backdrop")) Mail.closeComposer();
+});
+Mail.$("compose-form").addEventListener("submit", Mail.sendMail);
+
+Mail.$("btn-reply").addEventListener("click", Mail.replyTo);
+Mail.$("btn-back").addEventListener("click", Mail.backToList);
+Mail.$("btn-delete").addEventListener("click", Mail.deleteMail);
+Mail.$("btn-unread").addEventListener("click", Mail.toggleRead);
+Mail.$("mail-address").addEventListener("click", Mail.copyAddress);
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !Mail.$("compose-backdrop").hidden) Mail.closeComposer();
+  if (ev.key === "Escape" && !Mail.$("help-backdrop").hidden) Mail.closeHelp();
+});
+
+/* ── инструкция ── */
+Mail.openHelp = function () { Mail.$("help-backdrop").hidden = false; };
+Mail.closeHelp = function () { Mail.$("help-backdrop").hidden = true; };
+Mail.$("btn-help").addEventListener("click", Mail.openHelp);
+Mail.$("btn-help-login").addEventListener("click", Mail.openHelp);
+Mail.$("btn-help-close").addEventListener("click", Mail.closeHelp);
+Mail.$("btn-help-close2").addEventListener("click", Mail.closeHelp);
+Mail.$("help-backdrop").addEventListener("click", (ev) => {
+  if (ev.target === Mail.$("help-backdrop")) Mail.closeHelp();
+});
+
+Mail.$("search").addEventListener("input", () => {
+  Mail.STATE.query = Mail.$("search").value.trim();
+  Mail.renderList();
+});
+
+document.querySelectorAll(".tab").forEach((t) => {
+  t.addEventListener("click", () => Mail.switchTab(t.dataset.tab));
+});
+
+/* ── старт ── */
+(async () => {
+  await Mail.loadStatus();
+  if (!Mail.$("main-view").hidden) await Mail.loadMails();
+})();
+
+</script>
 </body>
 </html>

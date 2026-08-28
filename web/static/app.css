@@ -1,0 +1,436 @@
+/* Nostr Mail — дизайн v2 (2026-08-26)
+   По правилам design-rules.md: кастомные easing, <300ms,
+   :active scale(0.97), без scale(0), без transition:all,
+   только transform+opacity, reduced-motion, hover-gate. */
+
+:root {
+  --bg: #0a0a0f;
+  --bg-soft: #101018;
+  --card: #15151f;
+  --card-hover: #1b1b28;
+  --border: #23233a;
+  --text: #e8ecf8;
+  --muted: #8a90a8;
+  --accent: #00d4ff;
+  --accent-2: #f5a623;
+  --danger: #ff3355;
+  --success: #34d399;
+  --bolt-glow: 0 0 18px rgba(0, 212, 255, 0.35);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --radius: 14px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(255, 51, 85, 0.10), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(0, 212, 255, 0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+.app { max-width: 760px; margin: 0 auto; padding: 18px 16px 64px; min-height: 100vh; }
+
+/* ── шапка ─────────────────────────────────────────── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 20px;
+}
+.logo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo svg { color: var(--accent); flex-shrink: 0; }
+.logo-bolt { filter: drop-shadow(var(--bolt-glow)); }
+.btn-help {
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  font-weight: 800; font-size: 15px; color: var(--accent);
+  border: 1px solid rgba(0, 212, 255, 0.3); background: rgba(0, 212, 255, 0.06);
+  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.btn-help:hover { background: rgba(0, 212, 255, 0.14); border-color: rgba(0, 212, 255, 0.6); }
+.btn-help:active { transform: scale(0.92); }
+.logo-badge {
+  display: inline-block; margin-left: 6px; vertical-align: 2px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em;
+  color: var(--accent); background: rgba(0, 212, 255, 0.10);
+  border: 1px solid rgba(0, 212, 255, 0.28); border-radius: 5px;
+  padding: 2px 5px 1px;
+}
+.logo-text { display: flex; flex-direction: column; min-width: 0; }
+.logo-title { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+.logo-sub {
+  background: none; border: none; color: var(--muted); font-size: 11.5px;
+  font-family: inherit; cursor: pointer; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw;
+  padding: 0; transition: color 160ms var(--ease-out);
+}
+.logo-sub:hover { color: var(--accent); }
+.logo-sub:active { transform: scale(0.97); }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ln {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(52, 211, 153, 0.10); border: 1px solid rgba(52, 211, 153, 0.25);
+  color: var(--success); font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+}
+
+/* ── кнопки ────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  padding: 9px 16px; border-radius: 10px;
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out),
+              border-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: none; color: #06121f; box-shadow: 0 4px 18px rgba(34, 211, 238, 0.22);
+}
+.btn-ghost { background: transparent; }
+.btn-block { width: 100%; }
+.btn-danger { color: var(--danger); }
+.btn-danger.armed { background: rgba(248, 113, 113, 0.14); border-color: rgba(248, 113, 113, 0.5); }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  padding: 6px; border-radius: 8px;
+  transition: transform 160ms var(--ease-out), color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.btn-icon:hover { color: var(--text); background: var(--card-hover); }
+.btn-icon:active { transform: scale(0.92); }
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:not(:disabled):hover { background-color: var(--card-hover); border-color: #32415f; }
+  .btn-primary:not(:disabled):hover { filter: brightness(1.08); }
+  .mail-item:hover { background: var(--card-hover); }
+}
+
+/* ── инструкция ───────────────────────────────────── */
+.help-modal {
+  width: min(560px, 92vw); max-height: 78vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 20px;
+  animation: help-in 240ms var(--ease-out);
+}
+@keyframes help-in {
+  from { opacity: 0; transform: scale(0.95) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.help-body h3 { font-size: 14px; margin: 14px 0 4px; color: var(--accent); }
+.help-body h3:first-child { margin-top: 4px; }
+.help-body p { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin-bottom: 4px; }
+.help-body code {
+  background: rgba(0, 212, 255, 0.09); color: var(--accent);
+  padding: 1px 6px; border-radius: 5px; font-size: 12.5px;
+  word-break: break-all;
+}
+
+/* ── аватары писем ─────────────────────────────────── */
+.mail-item { display: flex; align-items: flex-start; gap: 12px; }
+.avatar {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; color: #0a0a0f;
+  user-select: none; margin-top: 2px;
+}
+.mail-item-main { min-width: 0; flex: 1; }
+.attach-preview-img {
+  max-width: 100%; max-height: 260px; border-radius: 10px;
+  border: 1px solid var(--border); margin: 6px 0; display: block;
+  cursor: zoom-in; transition: transform 160ms var(--ease-out);
+}
+.attach-preview-img:hover { transform: scale(1.01); }
+.attach-preview-img:active { transform: scale(0.99); }
+
+/* stagger появления списка */
+.mail-item { animation: none; }
+
+/* ── логин ─────────────────────────────────────────── */
+.login { display: flex; align-items: center; justify-content: center; min-height: 72vh; }
+.login-card {
+  width: 100%; max-width: 360px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 30px 26px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 12px; text-align: center;
+  opacity: 1; transform: none;
+}
+@keyframes login-in {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.login-icon {
+  filter: drop-shadow(var(--bolt-glow));
+  animation: bolt-pulse 2.6s var(--ease-in-out) infinite;
+}
+@keyframes bolt-pulse {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.25)); }
+  50%      { filter: drop-shadow(0 0 22px rgba(0, 212, 255, 0.55)); }
+}
+.login-icon {
+  width: 60px; height: 60px; margin: 0 auto; border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(139, 92, 246, 0.16));
+  color: var(--accent);
+}
+.login-card h1 { font-size: 21px; letter-spacing: -0.02em; }
+.muted { color: var(--muted); font-size: 13px; }
+
+/* ── поля ввода ────────────────────────────────────── */
+.input {
+  width: 100%; background: var(--bg-soft); border: 1px solid var(--border);
+  color: var(--text); font: inherit; font-size: 14px;
+  padding: 11px 14px; border-radius: 10px; outline: none;
+  transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14); }
+.textarea { resize: vertical; min-height: 140px; line-height: 1.55; }
+.error { color: var(--danger); font-size: 13px; text-align: left; }
+
+/* ── тулбар ────────────────────────────────────────── */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.tabs { display: flex; gap: 4px; background: var(--bg-soft); padding: 4px; border-radius: 12px; border: 1px solid var(--border); }
+.tab {
+  background: none; border: none; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 9px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: transform 160ms var(--ease-out), color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.tab:active { transform: scale(0.96); }
+.tab.active { background: var(--card); color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.badge {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #06121f; font-size: 11px; font-weight: 700; border-radius: 999px;
+  padding: 1px 7px; min-width: 20px; text-align: center;
+}
+.toolbar-right { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+.search { position: relative; flex: 1; max-width: 220px; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.search-input { padding-left: 34px; }
+
+/* ── список писем ──────────────────────────────────── */
+.mail-list { display: flex; flex-direction: column; gap: 8px; }
+.mail-item {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 13px 16px; cursor: pointer;
+  transition: transform 160ms var(--ease-out), opacity 240ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.mail-item:active { transform: scale(0.99); }
+.mail-item.unread { border-left: 3px solid var(--accent); }
+.mail-item-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.mail-item-from {
+  font-size: 13.5px; font-weight: 600; color: var(--text);
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mail-item.unread .mail-item-from { color: var(--accent); }
+.mail-item-date { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.mail-item-subject { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-item.unread .mail-item-subject { font-weight: 600; }
+.unread-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent); box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+
+/* ── пустые состояния ──────────────────────────────── */
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  color: var(--muted); text-align: center; padding: 60px 20px; font-size: 14px;
+}
+.empty svg { color: #33415c; }
+.empty code {
+  background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px;
+  padding: 3px 8px; font-size: 12px; color: var(--accent); word-break: break-all;
+}
+
+/* ── деталь письма ─────────────────────────────────── */
+.detail { display: flex; flex-direction: column; gap: 14px; }
+.detail-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.detail-actions { display: flex; gap: 8px; }
+.detail-actions.bottom { justify-content: flex-end; }
+.mail-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px 22px 26px;
+}
+.mail-card-head { display: flex; gap: 14px; margin-bottom: 18px; }
+.mail-avatar {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 18px; color: #06121f;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.mail-card-meta { min-width: 0; }
+.mail-card h2 { font-size: 19px; letter-spacing: -0.02em; margin-bottom: 10px; word-break: break-word; }
+.mail-meta { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted); }
+.mail-meta b { color: var(--text); font-weight: 600; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; color: var(--text); }
+.mail-body {
+  white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.65;
+  border-top: 1px solid var(--border); padding-top: 18px; color: #d8e0ee;
+}
+
+/* ── композер ──────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(4, 8, 16, 0.66); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.compose {
+  width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 22px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 12px;
+  opacity: 0; transform: scale(0.95);
+  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+  transform-origin: center;
+}
+.compose.compose-in { opacity: 1; transform: scale(1); }
+.compose-head { display: flex; align-items: center; justify-content: space-between; }
+.compose-head h2 { font-size: 18px; letter-spacing: -0.02em; }
+.compose-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.compose-hint { color: var(--muted); font-size: 12px; margin-right: auto; }
+
+/* ── тост ──────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; z-index: 100;
+  transform: translateX(-50%) translateY(20px); opacity: 0;
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  font-size: 14px; font-weight: 500; padding: 11px 20px; border-radius: 999px;
+  box-shadow: var(--shadow); pointer-events: none; max-width: 88vw; text-align: center;
+  transition: transform 240ms var(--ease-out), opacity 240ms var(--ease-out);
+}
+.toast-visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast[data-kind="err"] { border-color: rgba(248, 113, 113, 0.5); color: var(--danger); }
+.toast[data-kind="warn"] { border-color: rgba(251, 191, 36, 0.5); color: #fbbf24; }
+
+/* ── адаптив ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  .app { padding: 14px 12px 80px; }
+  .logo-sub { max-width: 40vw; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar-right { justify-content: stretch; }
+  .search { max-width: none; }
+  .btn-compose { flex: 1; }
+  .mail-item { padding: 14px 14px; }
+  .mail-card { padding: 18px 16px; }
+  .detail-top { flex-wrap: wrap; }
+  .compose { padding: 18px 16px; }
+}
+
+/* ── reduced motion ────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .mail-item, .mail-card, .compose, .login-card, .toast { transition: none !important; transform: none !important; opacity: 1 !important; }
+}
+
+/* переключатель ящиков (мульти-аккаунт) */
+.account-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-2, #16181d);
+  color: var(--text, #e6e9ef);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  padding: 7px 30px 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+.account-switch:hover { border-color: var(--accent, #4f9cf9); }
+.account-switch:active { transform: scale(0.97); }
+.account-switch option { background: var(--bg-2, #16181d); color: var(--text, #e6e9ef); }
+@media (prefers-reduced-motion: reduce) {
+  .account-switch { transition: none; }
+  .account-switch:active { transform: none; }
+}
+
+/* вложения: чипы в композере + список в деталях */
+.compose-attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-2, #16181d); border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 999px; padding: 4px 10px; font-size: 12.5px; color: var(--text, #e6e9ef);
+}
+.attach-chip svg { flex-shrink: 0; opacity: 0.7; }
+.attach-size { opacity: 0.55; font-size: 11.5px; }
+.attach-remove {
+  background: none; border: 0; color: var(--muted, #888); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 50%;
+  transition: color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+.attach-remove:hover { color: var(--danger, #ff5c5c); }
+.attach-remove:active { transform: scale(0.9); }
+.mail-attachments {
+  margin-top: 14px; border-top: 1px solid var(--border, rgba(255,255,255,0.08)); padding-top: 12px;
+}
+.attachments-title { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.55; margin-bottom: 8px; }
+.attachments-list { display: flex; flex-direction: column; gap: 6px; }
+.attach-download {
+  display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  background: var(--bg-2, #16181d); border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px; padding: 7px 12px; font-size: 13px; color: var(--text, #e6e9ef);
+  cursor: pointer; transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.attach-download:hover { border-color: var(--accent, #4f9cf9); }
+.attach-download:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .attach-remove, .attach-download { transition: none; }
+  .attach-download:active, .attach-remove:active { transform: none; }
+}
+
+/* IMAP-настройки (вкладка «Входящие (IMAP)») */
+.imap-settings { padding: 18px 4px; }
+.imap-card { max-width: 520px; background: var(--bg-card, #1c1f26); border: 1px solid var(--border, #2a2e37); border-radius: 14px; padding: 20px; }
+.imap-title { font-size: 17px; margin: 0 0 6px; }
+.imap-sub { font-size: 13px; opacity: .75; margin: 0 0 16px; line-height: 1.5; }
+.imap-form { display: flex; flex-direction: column; gap: 12px; }
+.imap-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; opacity: .85; }
+.imap-row { display: flex; gap: 14px; align-items: flex-end; }
+.imap-narrow { width: 130px; }
+.imap-check { display: flex; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 9px; }
+.imap-actions { display: flex; gap: 10px; margin-top: 6px; }
+.imap-status { margin-top: 14px; font-size: 13px; line-height: 1.55; padding: 10px 12px; background: var(--bg-inset, #14161b); border-radius: 10px; }
+.imap-err { color: #ff7a7a; }
+.imap-hint { font-size: 12px; opacity: .6; margin: 12px 0 0; }
+
+/* ── переключатель способа входа (пароль / nsec) ─────── */
+.login-mode {
+  display: flex; gap: 6px; padding: 3px;
+  background: var(--bg-soft, #101018); border: 1px solid var(--border, #1e2a41);
+  border-radius: 12px;
+}
+.mode-btn {
+  flex: 1; padding: 8px 10px; border: none; border-radius: 9px;
+  background: transparent; color: var(--muted, #8a93a6);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 240ms var(--ease-out, cubic-bezier(0.23,1,0.32,1)), color 240ms var(--ease-out, cubic-bezier(0.23,1,0.32,1));
+}
+.mode-btn:active { transform: scale(0.97); }
+.mode-btn.active {
+  background: var(--card-hover, #141c2e); color: var(--accent, #4f8cff);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode-btn { transition: none; }
+}

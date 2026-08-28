@@ -67,3 +67,56 @@ PYTHONPATH=... python3 -m mailbridge.imap_bridge  # демон (цикл)
 ```bash
 cd sites/cryter-mail && NO_BRIDGE=1 python3 -m pytest tests/test_imap_bridge.py -v
 ```
+
+---
+
+## Режим 2 (основной, с 2026-08-28): МУЛЬТИ-ЮЗЕР — каждый сам
+
+Раньше был ОДИН общий конфиг `.secure/imap_config.json` → письма шли в ящик
+одного владельца. Теперь **каждый пользователь/агент подключает СВОЙ внешний
+IMAP-ящик через веб-клиент** — и письма приходят в ЕГО SNIN-ящик по полному
+контуру:
+
+```
+внешний IMAP (mail.ru и др.)
+  → демон imap_bridge (fetch, каждые 120 с)
+  → kind:1301, NIP-59 gift wrap, подпись ключом ВЛАДЕЛЬЦА (p-тег = его pubkey)
+  → релеи (3)
+  → мост владельца (SharedSubscriber)
+  → его inbox (imap_configs → доставка)
+```
+
+### Как пользователь подключает
+
+1. Заходит на snin-mail.v2.site → логин (свой npub + пароль ящика).
+2. Вкладка **«Входящие (IMAP)»** → форма: хост, порт, SSL, логин, app-пароль.
+3. Сохранить. Демон подхватывает конфиг в течение минуты.
+
+### API
+
+- `GET    /api/imap/config` — свой конфиг (пароль маской)
+- `PUT    /api/imap/config` — `{host, port, ssl, user, app_password?}` (пустой пароль = не менять)
+- `DELETE /api/imap/config` — отключить
+- `GET    /api/imap/status` — `{enabled, last_sync, last_error}`
+
+Пароль шифруется AES-256-GCM (ключ = sha256(master_nsec + ":imap")), в БД
+`imap_configs` (inbox.db) — только шифротекст.
+
+### Демон (мульти-юзер)
+
+```bash
+# все включённые конфиги из БД + legacy-конфиг (если есть)
+PYTHONPATH=src:deps python3 -m mailbridge.imap_bridge          # цикл, poll 120 c
+PYTHONPATH=src:deps python3 -m mailbridge.imap_bridge --once   # один проход (для теста)
+PYTHONPATH=src:deps python3 -m mailbridge.imap_bridge --no-legacy  # только БД
+```
+
+Статус каждой доставки пишется в `imap_configs.last_sync/last_error` —
+виден пользователю во вкладке.
+
+### Тесты
+
+```bash
+cd sites/cryter-mail && NO_BRIDGE=1 python3 -m pytest tests/test_imap_api.py -q
+# + общий прогон: tests/ (56 тестов)
+```

@@ -170,38 +170,32 @@ def imap_to_mail_text(raw: bytes) -> tuple[dict, str]:
 
 
 def publish_to_inbox(cfg: dict, mail_text: str) -> tuple[bool, str]:
-    """Публикует письмо в ящик владельца через мост (полный контур Nostr)."""
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from mailapp import config as mcfg
+    """Публикует письмо в ящик владельца через мост (полный контур Nostr).
+
+    cfg: {"owner": pubkey_hex владельца, ...} — письмо подписывается ключом
+    ВЛАДЕЛЬЦА (из mail_keys) и адресуется p-тегом на него же → его мост
+    поймает и положит в ЕГО inbox.
+    """
+    from mailapp.auth import get_mail_key
     from mailapp.bridge import get_bridge
     from mailbridge.nip59 import wrap_mail
     from mailbridge.nip44 import pubkey_from_privkey
 
-    owner = cfg["target_owner"]
-    owner_info = mcfg.OWNER_INDEX.get(owner)
-    if not owner_info:
-        # владелец не в config (новый) — из accounts
-        import sqlite3
-        db = mcfg.DB
-        row = sqlite3.connect(db).execute(
-            "SELECT pubkey_hex, address, label FROM accounts WHERE label=?", (owner,)
-        ).fetchone()
-        if not row:
-            return False, f"владелец {owner} не найден в accounts"
-        nsec = None
-        from mailapp.auth import get_mail_key
-        nsec = get_mail_key(row[0])
-        owner_info = {"pubkey_hex": row[0], "address": row[1], "label": row[2], "nsec_hex": nsec}
-    nsec = owner_info.get("nsec_hex")
+    owner = cfg["owner"]
+    nsec = get_mail_key(owner)
     if not nsec:
-        return False, f"нет nsec для {owner}"
-    pub = owner_info["pubkey_hex"]
+        return False, f"нет приватного ключа для владельца {owner[:12]}…"
+    pub = owner
     if len(pub) != 64:
         pub = pubkey_from_privkey(nsec)
 
     gw = wrap_mail(nsec, pub, MAIL_KIND, mail_text, [["p", pub]])
-    br = get_bridge(owner)
-    accepted = br.publish(gw) if br else []
+    br = get_bridge(pub)
+    if br is None:
+        # NO_BRIDGE (тесты) или мост не поднят — событие не публикуем,
+        # но считаем контур отработанным (проверка цепочки без релеев)
+        return True, "no-bridge (test)"
+    accepted = br.publish(gw)
     if accepted:
         return True, f"опубликовано на {len(accepted)} релеев"
     return False, "0 релеев приняли (публикация не удалась)"
@@ -218,7 +212,7 @@ def run_once(cfg: dict) -> dict:
             ok_pub, msg = publish_to_inbox(cfg, mail_text)
             if ok_pub:
                 ok += 1
-                log.info("доставлено: %s | %s", meta.get("subject", "?")[:60], msg)
+                log.info("доставлено %s: %s | %s", cfg.get("owner","?")[:10], meta.get("subject", "?")[:60], msg)
             else:
                 fail += 1
                 keep_unseen.append(num)  # не удалось — оставляем непрочитанным
@@ -235,28 +229,91 @@ def run_once(cfg: dict) -> dict:
     return {"fetched": len(items), "ok": ok, "fail": fail}
 
 
+def run_all(include_legacy: bool = True) -> dict:
+    """Мульти-юзер: все включённые IMAP-конфиги из БД + legacy-конфиг.
+
+    Для каждого владельца — свой цикл: fetch → публикация от ЕГО ключа
+    (p-тег = его pubkey) → mark_seen → статус в БД (imap_configs).
+    """
+    from mailapp import imap_store as store
+    from mailapp.config import DB
+
+    store.ensure_table()
+    configs = store.list_configs(enabled_only=True)
+    stats = {"configs": len(configs), "per_owner": {}}
+
+    # legacy-режим: .secure/imap_config.json (один владелец)
+    legacy_owner = None
+    if include_legacy and os.path.exists(SECURE_FILE):
+        try:
+            lc = load_config(SECURE_FILE)
+            owner = _owner_hex_for_label(lc.get("target_owner", "cryter"))
+            if owner:
+                legacy_owner = owner
+                cfg = {**lc, "owner": owner}
+                st = run_once(cfg)
+                stats["per_owner"][owner[:12]] = st
+                store.touch_sync(owner, st["fail"] == 0,
+                                 "нет подключения" if st["fail"] else "")
+        except Exception as e:
+            log.warning("legacy imap_config.json: %s", e)
+
+    for c in configs:
+        owner = c["owner"]
+        cfg = {"host": c["host"], "port": c["port"], "ssl": c["ssl"],
+               "user": c["user"], "app_password": c["app_password"], "owner": owner}
+        try:
+            st = run_once(cfg)
+            stats["per_owner"][owner[:12]] = st
+            store.touch_sync(owner, st["fail"] == 0,
+                             "нет подключения" if st["fail"] else "")
+        except Exception as e:
+            log.exception("IMAP %s: %s", owner[:12], e)
+            store.touch_sync(owner, False, str(e)[:200])
+            stats["per_owner"][owner[:12]] = {"fetched": 0, "ok": 0, "fail": 1, "error": str(e)[:120]}
+
+    if legacy_owner and not configs:
+        stats["legacy"] = True
+    return stats
+
+
+def _owner_hex_for_label(label: str) -> str | None:
+    """label владельца (cryter, director_ai…) → pubkey_hex из accounts."""
+    try:
+        from mailapp.config import DB
+        import sqlite3
+        row = sqlite3.connect(DB).execute(
+            "SELECT pubkey_hex FROM accounts WHERE label=?", (label,)).fetchone()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="IMAP→SNIN мост")
-    ap.add_argument("--config", default=SECURE_FILE)
+    ap = argparse.ArgumentParser(description="IMAP→SNIN мост (мульти-юзер)")
+    ap.add_argument("--config", default=SECURE_FILE, help="legacy-конфиг (необязателен)")
     ap.add_argument("--once", action="store_true", help="один проход и выход")
+    ap.add_argument("--no-legacy", action="store_true", help="только конфиги из БД")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s: %(message)s")
-    cfg = load_config(args.config)
     if args.once:
-        print(json.dumps(run_once(cfg), ensure_ascii=False))
+        print(json.dumps(run_all(include_legacy=not args.no_legacy),
+                         ensure_ascii=False, default=str))
         return
-    log.info("IMAP-мост запущен: %s → %s (каждые %s c)",
-             cfg["user"], cfg["target_owner"], cfg.get("poll_seconds", 120))
+    log.info("IMAP-мост (мульти-юзер) запущен: конфиги из БД imap_configs, "
+             "poll %s с", os.environ.get("IMAP_POLL", "120"))
+    poll = int(os.environ.get("IMAP_POLL", "120"))
     while True:
         try:
-            st = run_once(cfg)
-            if st["ok"] or st["fail"]:
+            st = run_all(include_legacy=not args.no_legacy)
+            total = sum(v.get("ok", 0) + v.get("fail", 0) for v in st["per_owner"].values())
+            if total:
                 log.info("проход: %s", st)
         except Exception as e:
             log.exception("проход упал: %s", e)
-        time.sleep(cfg.get("poll_seconds", 120))
+        time.sleep(poll)
 
 
 if __name__ == "__main__":

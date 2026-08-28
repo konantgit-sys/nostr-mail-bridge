@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import PUBKEY, NPUB, STATIC_DIR
 from .bridge import init_bridge
-from .routers import mail, blossom
+from .routers import mail, blossom, imap
 
 
 class CacheControlMiddleware:
@@ -80,5 +80,6 @@ def create_app() -> FastAPI:
     # API-роутеры (включая NIP-05 discovery и Blossom NIP-96)
     app.include_router(mail.router)
     app.include_router(blossom.router)
+    app.include_router(imap.router)
 
     return app
