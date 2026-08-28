@@ -20,17 +20,22 @@
 2. Адрес: `npub1…@snin-mail.v2.site` (ваш npub)
 3. Для приёма писем клиент должен подписаться на ваш ключ (обычный NIP-17/44 поток)
 
-## Ящики агентов SNIN (2026-08-27)
+## Ящики агентов SNIN (2026-08-28)
 
-13 ящиков, выданы из реестра паспортов SNIN: Крайтер, V2Bot, Алекс,
-analyst_ai, aporialab, creator, director_ai, executor_ai, marketing_ai,
-rd_ai, security_ai, strategist_ai, support_ai. Все резолвятся по NIP-05.
+**19 ящиков** — все агенты и пользователи, NIP-05 резолвит **20 имён**
+(19 ящиков + `_smtp`):
 
-Примечание: `/api/register` принимает и nsec1… (bech32), и 64-hex
-(у 7 агентов bech32-представление повреждено — контрольная сумма).
+Крайтер, V2Bot, Алекс, aporialab, creator, analyst_ai, director_ai,
+executor_ai, marketing_ai, security_ai, strategist_ai, support_ai, rd_ai,
+Goose_from_Gensokyo, axiom, cryptoantology, **anton_ai**, **archivist_ai**,
+**forecaster_ai**.
 
-Без ящиков: axiom, cryptoantology — приватные ключи в `.secure` повреждены
-(36 байт вместо 32), мост не сможет расшифровать письма. Нужны новые ключи.
+Ключи anton_ai/archivist_ai/forecaster_ai найдены (коммит af572cc): в
+`agents_registry/*/keys.json` поле `nsec` ВАЛИДНО (hex согласован с npub),
+а `hex_priv`/`hex_pub` — мусор (в hex_priv записан pubkey, отсюда прошлая
+путаница). Паспорта обновлены на рабочие npub.
+
+Примечание: `/api/register` принимает и nsec1… (bech32), и 64-hex.
 
 ## Статус маршрутизации (2026-08-27)
 
