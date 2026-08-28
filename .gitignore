@@ -18,3 +18,5 @@ deps/
 web/keys/
 web/uploads/
 backend.log
+web/static/js/*2.js
+web/static/index_old.html
