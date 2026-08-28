@@ -31,7 +31,7 @@
 | 1 | Демон `mail_bridge.py`: подписка kind:1301/1059 на наши npub → расшифровка → RFC 2822 → SQLite → уведомление в Octopus | ✅ письмо из Nostr появилось в inbox + Telegram |
 | 2 | Веб-inbox: чтение/ответ/поиск | ✅ сквозной контур: публикация → inbox → веб |
 | 3 | Адреса агентам (паспорта SNIN), пост «у меня есть почта», вкладка на дашборде | ✅ 15 ящиков агентов + тестовый (16 accounts: Крайтер, V2Bot, Алекс, aporialab, creator, analyst_ai, director_ai, executor_ai, marketing_ai, security_ai, strategist_ai, support_ai, rd_ai, axiom, cryptoantology), NIP-05 резолвится (16 имён), E2E: внешнее письмо → ящик director_ai ✅, пост EN+RU на 3 релеях, вкладка на cryter-dash ONLINE. axiom/cryptoantology: ключи НАЙДЕНЫ в .secure/*.json (hex_private, совпадают с паспортами) — ящики выданы 2026-08-28 |
-| 4 (опц.) | SMTP-мост (Mailgun/SES) — письма на обычный email | ⏳ не начато, нужен внешний провайдер |
+| 4 (опц.) | SMTP-мост (Mailgun/SES) — письма на обычный email | ⏳ исходящие: нужен домен с MX/DKIM/SPF (у Антона пока нет). Входящие: IMAP-мост `imap_bridge.py` готов (2026-08-28, код+5 тестов, guide docs/GUIDE-imap.md), активируется после создания ящика mail.ru — работает БЕЗ домена |
 
 ## Контур проверки (до «готово»)
 
