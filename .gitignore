@@ -3,3 +3,13 @@ __pycache__/
 web/config.json
 .sessions.json
 tools/publish_note.py
+
+# секреты и платформозависимые бинарники
+web/config.json
+.secure/
+*.db
+*.sqlite
+*.sqlite3
+inbox.db
+data/agents_registry/*/keys.json
+deps/
