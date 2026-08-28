@@ -3,17 +3,40 @@
 db/client продублированы из test_api.py (файловые фикстуры имеют приоритет
 над conftest-овскими — test_api.py продолжит использовать свои).
 """
+import json
 import os
 import sqlite3
 import sys
 
 import pytest
 
-_MB = "/home/agent/data/projects/nostr-mail-bridge/src"
-_DEPS = "/home/agent/data/projects/nostr-mail-bridge/deps"
+_WEB_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+_MB = os.path.join(_WEB_ROOT, "..", "src")
+_DEPS = os.path.join(_WEB_ROOT, "..", "deps")
 for _p in (_MB, _DEPS):
-    if _p not in sys.path:
+    if os.path.isdir(_p) and _p not in sys.path:
         sys.path.insert(0, _p)
+
+# ── чистый клон: mailapp.config читает web/config.json при импорте ──
+# Если конфига нет (репо свежее, config.json в .gitignore) — создаём
+# из config.example.json с ВАЛИДНЫМ тестовым ключом, чтобы тесты
+# (включая NIP-98 подпись) работали без ручной настройки.
+_CFG_PATH = os.path.join(_WEB_ROOT, "config.json")
+if not os.path.exists(_CFG_PATH):
+    import secrets
+
+    from mailbridge.nip44 import pubkey_from_privkey
+
+    _example = os.path.join(_WEB_ROOT, "config.example.json")
+    with open(_example) as _f:
+        _cfg = json.load(_f)
+    _cfg["auth_password"] = "test-password"
+    _nsec = secrets.token_hex(32)
+    _cfg["nsec_hex"] = _nsec
+    _cfg["pubkey_hex"] = pubkey_from_privkey(_nsec)
+    with open(_CFG_PATH, "w") as _f:
+        json.dump(_cfg, _f, ensure_ascii=False, indent=2)
 
 
 @pytest.fixture()

@@ -13,3 +13,8 @@ web/config.json
 inbox.db
 data/agents_registry/*/keys.json
 deps/
+
+# runtime-данные (секреты и вложения — только локально)
+web/keys/
+web/uploads/
+backend.log

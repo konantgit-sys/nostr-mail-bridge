@@ -137,6 +137,10 @@ def nip05(name: str = ""):
 # ── auth ────────────────────────────────────────────────
 @router.post("/api/login")
 def login(body: dict, response: Response):
+    nsec = (body.get("nsec") or "").strip()
+    if nsec:  # вход по ключу (как NostrMail) — без пароля
+        from ..auth import login_by_nsec
+        return login_by_nsec(nsec, response)
     addr = (body.get("address") or "").strip()
     pw = body.get("password") or ""
     if not addr:  # обратная совместимость: старый {password} → админ

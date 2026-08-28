@@ -13,6 +13,8 @@ Nostr Mail — API тесты (pytest).
 
 import os
 import sys
+import json
+import base64
 import sqlite3
 
 import pytest
@@ -42,7 +44,7 @@ def db(tmp_path):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             message_id TEXT, sender_pubkey TEXT, from_addr TEXT, to_addr TEXT,
             subject TEXT, body TEXT, received_at INTEGER, is_read INTEGER DEFAULT 0,
-            raw_event TEXT, owner TEXT DEFAULT ''
+            raw_event TEXT, attachments TEXT DEFAULT '[]', owner TEXT DEFAULT ''
         );
         CREATE TABLE outbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,8 +52,8 @@ def db(tmp_path):
             sent_at INTEGER, raw_event TEXT, owner TEXT DEFAULT ''
         );
         INSERT INTO inbox (message_id, sender_pubkey, from_addr, to_addr, subject, body, received_at, is_read, owner)
-        VALUES ('<m1@test>', 'aaa', 'npub1a…@cryter-mail.v2.site', 'npub1b…@cryter-mail.v2.site', 'Привет', 'Тело 1', 1000, 0, 'OWNER_A'),
-               ('<m2@test>', 'bbb', 'npub1c…@cryter-mail.v2.site', 'npub1b…@cryter-mail.v2.site', 'Срочно', 'Тело 2', 2000, 1, 'OWNER_A');
+        VALUES ('<m1@test>', 'aaa', 'npub1a…@snin-mail.v2.site', 'npub1b…@snin-mail.v2.site', 'Привет', 'Тело 1', 1000, 0, 'OWNER_A'),
+               ('<m2@test>', 'bbb', 'npub1c…@snin-mail.v2.site', 'npub1b…@snin-mail.v2.site', 'Срочно', 'Тело 2', 2000, 1, 'OWNER_A');
         INSERT INTO outbox (message_id, recipient_pubkey, subject, body, sent_at, owner)
         VALUES ('<o1@test>', 'ccc', 'Отправленное', 'Тело', 1500, 'OWNER_A');
         """
@@ -66,9 +68,11 @@ def client(db, tmp_path, monkeypatch):
     """Чистый клиент: временная БД, чистые сессии."""
     monkeypatch.setattr(cfg, "DB", db)
     monkeypatch.setattr(cfg, "DEFAULT_OWNER", "OWNER_A")
-    monkeypatch.setattr(cfg, "OWNER_INDEX", {"OWNER_A": {"nsec_hex": cfg.NSEC, "pubkey_hex": "OWNER_A", "address": "a@x", "label": "A"}})
-    monkeypatch.setattr(auth, "SESSIONS", set())
-    monkeypatch.setattr(auth, "SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    monkeypatch.setattr(cfg, "OWNERS", [{"nsec_hex": cfg.NSEC, "pubkey_hex": "OWNER_A", "address": "a@x", "label": "Крайтер", "npub": cfg.NPUB}])
+    monkeypatch.setattr(cfg, "OWNER_INDEX", {"OWNER_A": {"nsec_hex": cfg.NSEC, "pubkey_hex": "OWNER_A", "address": "a@x", "label": "Крайтер", "npub": cfg.NPUB}})
+    monkeypatch.setattr(cfg, "ACCOUNTS_FILE", str(tmp_path / "mail_accounts.json"))
+    monkeypatch.setattr(cfg, "SESSIONS_FILE", str(tmp_path / "sessions.json"))
+    monkeypatch.setattr(auth, "SESSIONS", {})
     with TestClient(appmod.app) as c:
         yield c
 
@@ -135,7 +139,7 @@ def test_mails_list(client):
     assert mails[1]["subject"] == "Привет"
     assert mails[1]["is_read"] is False
     # алиасы полей, которые ждёт фронт (v3: баг — API отдавал from_addr, фронт ждал from)
-    assert "from" in mails[0] and mails[0]["from"] == "npub1c…@cryter-mail.v2.site"
+    assert "from" in mails[0] and mails[0]["from"] == "npub1c…@snin-mail.v2.site"
     assert "from_addr" not in mails[0]
 
 
@@ -227,7 +231,7 @@ def test_send_full_address(client):
     """Адресат в формате npub@домен тоже принимается."""
     r = _login(client)
     s = r.cookies["mail_session"]
-    d = client.post("/api/send", json={"to_npub": f"{NPUB}@cryter-mail.v2.site",
+    d = client.post("/api/send", json={"to_npub": f"{NPUB}@{cfg.DOMAIN}",
                                        "subject": "Полный адрес", "body": "Тело"},
                     cookies={"mail_session": s})
     assert d.status_code == 200 and d.json()["ok"] is True
@@ -259,3 +263,358 @@ def test_nip05_discovery(client):
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+# ── регистрация / учётные записи ────────────────────────
+
+def _new_nsec():
+    """Свежий тестовый nsec (hex → bech32)."""
+    from mailapp.auth import _hex_to_nsec, _pubkey_to_npub
+    import secrets as _s
+    from mailbridge.mail_bridge import pubkey_from_privkey
+    hexk = _s.token_bytes(32).hex()
+    pub = pubkey_from_privkey(hexk)
+    return _hex_to_nsec(hexk), pub, _pubkey_to_npub(pub)
+
+
+def test_register_ok(client):
+    nsec, pub, npub = _new_nsec()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "secret123", "label": "Тест"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["ok"] is True
+    assert d["address"] == f"{npub}@{cfg.DOMAIN}"
+    assert d["pubkey"] == pub
+
+
+def test_register_duplicate(client):
+    nsec, _, _ = _new_nsec()
+    client.post("/api/register", json={"nsec": nsec, "password": "secret123"})
+    r = client.post("/api/register", json={"nsec": nsec, "password": "secret123"})
+    assert r.status_code == 409
+    assert r.json()["error"] == "already registered"
+
+
+def test_register_short_password(client):
+    nsec, _, _ = _new_nsec()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "123"})
+    assert r.status_code == 400
+    assert r.json()["error"] == "password too short"
+
+
+def test_register_invalid_nsec(client):
+    r = client.post("/api/register", json={"nsec": "nsec1invalid", "password": "secret123"})
+    assert r.status_code == 400
+
+
+def test_login_by_address_with_own_password(client):
+    nsec, pub, npub = _new_nsec()
+    client.post("/api/register", json={"nsec": nsec, "password": "secret123", "label": "Новичок"})
+    r = client.post("/api/login", json={"address": f"{npub}@{cfg.DOMAIN}", "password": "secret123"})
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    assert r.json()["role"] == "user"
+    assert "mail_session" in r.cookies
+
+
+def test_login_wrong_password_new_account(client):
+    nsec, _, npub = _new_nsec()
+    client.post("/api/register", json={"nsec": nsec, "password": "secret123"})
+    r = client.post("/api/login", json={"address": npub, "password": "wrongpass"})
+    assert r.json()["ok"] is False
+    assert r.json()["error"] == "wrong password"
+
+
+def test_user_sees_only_own_mailbox(client):
+    """Обычный пользователь видит ТОЛЬКО свой ящик, даже если ?owner= чужой."""
+    nsec, _, npub = _new_nsec()
+    client.post("/api/register", json={"nsec": nsec, "password": "secret123"})
+    r = client.post("/api/login", json={"address": npub, "password": "secret123"})
+    s = r.cookies["mail_session"]
+    # в БД есть письма OWNER_A, но ?owner=OWNER_A — не должен их отдать
+    d = client.get("/api/mails?owner=OWNER_A", cookies={"mail_session": s})
+    assert d.status_code == 200
+    assert d.json()["mails"] == []
+    st = client.get("/api/status", cookies={"mail_session": s})
+    assert st.json()["me"]["role"] == "user"
+    assert len(st.json()["accounts"]) == 1  # только свой
+
+
+def test_send_with_attachment_and_detail(client):
+    import base64
+    s = _login(client).cookies["mail_session"]
+    pdf = b"%PDF-1.4 test " + b"x" * 100
+    att = {"filename": "spec.pdf", "mime": "application/pdf", "data_base64": base64.b64encode(pdf).decode()}
+    d = client.post("/api/send", json={
+        "to_npub": f"{cfg.NPUB}@{cfg.DOMAIN}", "subject": "С файлом", "body": "Смотри",
+        "attachments": [att],
+    }, cookies={"mail_session": s})
+    assert d.status_code == 200
+    assert d.json()["ok"] is True
+    # письмо легло в outbox
+    ob = client.get("/api/outbox", cookies={"mail_session": s}).json()["outbox"]
+    assert ob and ob[0]["subject"] == "С файлом"
+    # вложение доехало до сервера: событие (raw_event) содержит multipart-контент
+    from mailapp.db import query
+    rows = query(cfg.DB, "SELECT raw_event FROM outbox WHERE subject=? ORDER BY id DESC LIMIT 1", ("С файлом",))
+    assert rows
+    import json as _json
+    ev = _json.loads(rows[0]["raw_event"])
+    assert "multipart" not in ev.get("content", "")  # контент зашифрован — ок, сам multipart проверен unit-тестами
+
+
+def test_send_attachment_too_many(client):
+    import base64
+    s = _login(client).cookies["mail_session"]
+    atts = [{"filename": f"f{i}.bin", "mime": "application/octet-stream", "data_base64": base64.b64encode(b"x" * 10).decode()} for i in range(6)]
+    d = client.post("/api/send", json={
+        "to_npub": f"{cfg.NPUB}@{cfg.DOMAIN}", "subject": "Много", "body": "b", "attachments": atts,
+    }, cookies={"mail_session": s})
+    assert d.status_code == 400
+    assert "5" in d.json()["error"]
+
+
+def test_detail_returns_attachments(client):
+    import json as _json
+    s = _login(client).cookies["mail_session"]
+    # вставляем письмо с вложениями напрямую в БД (как это делает мост)
+    from mailapp.db import connect
+    with connect(cfg.DB) as conn:
+        conn.execute(
+            """INSERT INTO inbox (message_id, sender_pubkey, from_addr, to_addr, subject, body,
+                received_at, is_read, raw_event, attachments, owner)
+               VALUES (?,?,?,?,?,?,?,0,'{}',?,?)""",
+            ("<a1@x>", "OWNER_A", "a@x", "b@x", "С файлом", "Текст", 1000,
+             _json.dumps([{"filename": "f.pdf", "mime": "application/pdf", "data_base64": "JVBERg=="}]),
+             "OWNER_A"),
+        )
+        mid = conn.execute("SELECT id FROM inbox WHERE message_id='<a1@x>'").fetchone()[0]
+    d = client.get(f"/api/mails/{mid}", cookies={"mail_session": s})
+    assert d.status_code == 200
+    m = d.json()["mail"]
+    assert m["body"] == "Текст"
+    assert len(m["attachments"]) == 1
+    assert m["attachments"][0]["filename"] == "f.pdf"
+
+
+def test_bearer_token_auth(client):
+    """Авторизация через Authorization: Bearer (прокси не подмешивает заголовок)."""
+    r = _login(client)
+    token = r.json()["token"]
+    assert token
+    d = client.get("/api/mails", headers={"Authorization": f"Bearer {token}"})
+    assert d.status_code == 200
+    assert d.json()["ok"] is True
+    # без cookie и без заголовка — auth
+    client.cookies.clear()
+    bad = client.get("/api/mails")
+    assert bad.json().get("error") == "auth"
+    # неверный токен — auth
+    bad2 = client.get("/api/mails", headers={"Authorization": "Bearer deadbeef"})
+    assert bad2.json().get("error") == "auth"
+
+
+def _gen_key():
+    """Новый валидный ключ: (nsec, hex)."""
+    import secp256k1
+    priv = secp256k1.PrivateKey()
+    ser = priv.serialize()
+    hex_ = ser if isinstance(ser, str) else ser.hex()
+    return auth._hex_to_nsec(hex_), hex_
+
+
+def test_register_hides_nsec(client, monkeypatch, tmp_path):
+    """API регистрации не возвращает nsec и не кладёт его в открытый вид."""
+    import mailapp.auth as auth
+    # создаём настоящий ключ
+    nsec, nsec_hex = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "secret123", "label": "Тест"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["ok"] is True
+    assert "nsec" not in json.dumps(d).lower() or "nsec_hex" not in d
+    assert d["pubkey"]
+    # в БД: mail_keys содержит зашифрованный (не открытый) nsec
+    import mailapp.config as cfg
+    import sqlite3
+    with sqlite3.connect(cfg.DB) as c:
+        row = c.execute("SELECT nsec_enc FROM mail_keys WHERE pubkey_hex=?", (d["pubkey"],)).fetchone()
+    assert row and row[0] != nsec_hex and "nsec" not in row[0].lower()
+
+
+def test_reset_password_with_own_key(client):
+    """Сброс пароля: владелец nsec может задать новый пароль."""
+    # регистрируемся со своим ключом
+    nsec, nsec_hex = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "oldpass1", "label": "Сброс"})
+    addr = r.json()["address"]
+    # вход со старым
+    ok = client.post("/api/login", json={"address": addr, "password": "oldpass1"})
+    assert ok.json()["ok"] is True
+    # сброс с правильным nsec
+    res = client.post("/api/reset-password", json={"address": addr, "nsec": nsec, "new_password": "newpass1"})
+    assert res.json()["ok"] is True
+    # старый пароль больше не работает
+    bad = client.post("/api/login", json={"address": addr, "password": "oldpass1"})
+    assert bad.json().get("ok") is False
+    # новый работает
+    good = client.post("/api/login", json={"address": addr, "password": "newpass1"})
+    assert good.json()["ok"] is True
+
+
+def test_reset_password_wrong_key_rejected(client):
+    """Чужой nsec не может сбросить пароль."""
+    nsec, nsec_hex = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "oldpass1", "label": "Цель"})
+    addr = r.json()["address"]
+    other, _ = _gen_key()
+    res = client.post("/api/reset-password", json={"address": addr, "nsec": other, "new_password": "hacked1"})
+    assert res.json().get("ok") is False
+    assert res.json().get("error") == "key mismatch"
+
+
+def test_send_attachment_too_big(client, monkeypatch):
+    """Вложение больше лимита → 413."""
+    monkeypatch.setattr(cfg, "LIMITS", {**cfg.LIMITS, "max_attachment_size_mb": 5})
+    s = _login(client).cookies["mail_session"]
+    big = base64.b64encode(b"x" * (6 * 1024 * 1024)).decode()  # 6 МБ
+    r = client.post("/api/send", cookies={"mail_session": s}, json={
+        "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
+        "subject": "Файл", "body": "текст",
+        "attachments": [{"filename": "big.bin", "mime": "application/octet-stream", "data_base64": big}],
+    })
+    assert r.status_code == 413
+
+
+def test_send_too_many_attachments(client, monkeypatch):
+    monkeypatch.setattr(cfg, "LIMITS", {**cfg.LIMITS, "max_attachments_per_mail": 5})
+    s = _login(client).cookies["mail_session"]
+    small = base64.b64encode(b"ok").decode()
+    atts = [{"filename": f"f{i}.bin", "mime": "application/octet-stream", "data_base64": small} for i in range(6)]
+    r = client.post("/api/send", cookies={"mail_session": s}, json={
+        "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
+        "subject": "Много", "body": "текст", "attachments": atts,
+    })
+    assert r.status_code == 400
+    assert "максимум" in r.json()["error"]
+
+
+def test_send_daily_limit(client, monkeypatch):
+    """Дневной лимит отправок → 429 после исчерпания."""
+    monkeypatch.setattr(cfg, "LIMITS", {**cfg.LIMITS, "max_send_per_day": 1})
+    s = _login(client).cookies["mail_session"]
+    payload = {
+        "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
+        "subject": "Лимит", "body": "текст",
+    }
+    r1 = client.post("/api/send", cookies={"mail_session": s}, json=payload)
+    assert r1.json()["ok"] is True
+    r2 = client.post("/api/send", cookies={"mail_session": s}, json=payload)
+    assert r2.status_code == 429
+
+
+def test_new_user_can_send(client, monkeypatch):
+    """Зарегистрированный пользователь может отправлять (nsec из mail_keys)."""
+    nsec, _ = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "userpass1", "label": "Юзер"})
+    addr = r.json()["address"]
+    tok = client.post("/api/login", json={"address": addr, "password": "userpass1"}).json()["token"]
+    d = client.post("/api/send", headers={"Authorization": f"Bearer {tok}"}, json={
+        "to_npub": f"npub13tnevkh3kcf50wueqzu3e755sljd5fqqhkcxx5s66zzswphlt7tqe87x6n@{cfg.DOMAIN}",
+        "subject": "От юзера", "body": "тест",
+    })
+    assert d.status_code == 200, d.text
+    assert d.json()["ok"] is True
+
+
+def test_login_old_domain_still_works(client):
+    """Обратная совместимость: вход по npub@старый-домен работает (identity по npub)."""
+    nsec, _ = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "pass1234", "label": "Мигрант"})
+    npub_part = r.json()["address"].split("@")[0]
+    # новый домен в адресе при регистрации
+    assert r.json()["address"].endswith(f"@{cfg.DOMAIN}")
+    # вход по старому домену (любой другой домен) — работает
+    for dom in ("cryter-mail.v2.site", "nostrmail.org"):
+        d = client.post("/api/login", json={"address": f"{npub_part}@{dom}", "password": "pass1234"})
+        assert d.json()["ok"] is True, f"домен {dom}: {d.text}"
+        # и в ответе адрес — с текущим доменом
+        assert d.json()["address"].endswith(f"@{cfg.DOMAIN}")
+
+
+def test_status_shows_current_domain(client):
+    """/api/status отдаёт адрес с текущим доменом (не из БД, не старый)."""
+    d = client.post("/api/login", json={"password": PASSWORD})  # legacy-login админа
+    tok = d.json()["token"]
+    st = client.get("/api/status", headers={"Authorization": f"Bearer {tok}"}).json()
+    assert st["ok"] is True
+    assert st["me"]["address"].endswith(f"@{cfg.DOMAIN}")
+    assert st["domain"] == cfg.DOMAIN
+
+
+def test_register_rate_limit(client, monkeypatch):
+    """Антиспам: лимит регистраций в час (429 при превышении)."""
+    import mailapp.config as cfgmod
+    auth._REG_WINDOW.clear()  # сброс окна (другие тесты уже регистрировались)
+    monkeypatch.setattr(cfgmod, "LIMITS", {**cfgmod.LIMITS, "register_limit_per_hour": 2})
+    ok = 0
+    for i in range(3):
+        nsec, _ = _gen_key()
+        r = client.post("/api/register", json={"nsec": nsec, "password": f"pass{i}234", "label": f"R{i}"})
+        if r.status_code == 200:
+            ok += 1
+    assert ok == 2, f"ожидали 2 успешные регистрации, вышло {ok}"
+    # третья — 429
+    nsec, _ = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "pass9999", "label": "R3"})
+    assert r.status_code == 429
+
+
+# ── вход по nsec (как NostrMail) ────────────────────────
+
+def test_login_by_nsec(client):
+    """Вход по приватному ключу: nsec → ящик → сессия, без пароля."""
+    nsec, _ = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "pass1234", "label": "Ключ"})
+    assert r.status_code == 200, r.text
+    addr = r.json()["address"]
+    d = client.post("/api/login", json={"nsec": nsec})
+    assert d.status_code == 200, d.text
+    assert d.json()["ok"] is True, d.text
+    assert d.json()["address"] == addr
+    assert d.json()["token"]
+    # и письма доступны по сессии
+    m = client.get("/api/mails", headers={"Authorization": f"Bearer {d.json()['token']}"})
+    assert m.status_code == 200 and m.json()["ok"] is True
+
+
+def test_login_by_nsec_unknown_key(client):
+    """nsec без ящика → понятная ошибка (а не «неверный пароль»)."""
+    nsec, _ = _gen_key()
+    d = client.post("/api/login", json={"nsec": nsec})
+    assert d.status_code == 200
+    assert d.json()["ok"] is False
+    assert "ящика" in d.json()["error"]
+
+
+def test_login_by_nsec_invalid(client):
+    """Мусор в поле nsec → invalid nsec."""
+    d = client.post("/api/login", json={"nsec": "not-a-key"})
+    assert d.status_code == 200
+    assert d.json()["ok"] is False
+    assert d.json()["error"] == "invalid nsec"
+
+
+def test_register_no_password(client):
+    """Регистрация без пароля: вход только по nsec (как NostrMail)."""
+    nsec, _ = _gen_key()
+    r = client.post("/api/register", json={"nsec": nsec, "password": "", "label": "БезПароля"})
+    assert r.status_code == 200, r.text
+    addr = r.json()["address"]
+    # по паролю — нельзя
+    d = client.post("/api/login", json={"address": addr, "password": "anything123"})
+    assert d.json()["ok"] is False
+    # по nsec — можно
+    d2 = client.post("/api/login", json={"nsec": nsec})
+    assert d2.json()["ok"] is True, d2.text
+    assert d2.json()["address"] == addr

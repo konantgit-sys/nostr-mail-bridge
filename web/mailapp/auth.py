@@ -397,6 +397,31 @@ def login(address: str, password: str, response: Response):
     acc = _account_by_pubkey(pubkey)
     if not acc or not _verify_password(password, acc["password_hash"]):
         return JSONResponse({"ok": False, "error": "wrong password"})
+    return _start_session(acc, response)
+
+
+def login_by_nsec(nsec: str, response: Response):
+    """Вход по приватному ключу (как в NostrMail): nsec → ящик → сессия. Без пароля.
+
+    Из nsec вычисляется pubkey → ищем аккаунт → сессия. Пароль не нужен:
+    владение ключом и есть аутентификация.
+    """
+    nsec_hex = _nsec_to_hex(nsec)
+    if not nsec_hex:
+        return JSONResponse({"ok": False, "error": "invalid nsec"})
+    try:
+        from mailbridge.mail_bridge import pubkey_from_privkey
+        pubkey = pubkey_from_privkey(nsec_hex)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid nsec"})
+    acc = _account_by_pubkey(pubkey)
+    if not acc:
+        return JSONResponse({"ok": False, "error": "нет ящика для этого ключа — сначала зарегистрируйся"})
+    return _start_session(acc, response)
+
+
+def _start_session(acc: dict, response: Response):
+    """Общий код: токен + cookie + ответ."""
     token = secrets.token_hex(16)
     SESSIONS[token] = acc["pubkey_hex"]
     _save_sessions(SESSIONS)
@@ -468,7 +493,8 @@ def register(nsec: str, password: str, label: str, response: Response):
     npub = _pubkey_to_npub(pubkey)
     if not npub:
         return JSONResponse({"ok": False, "error": "invalid key"}, status_code=400)
-    if len(password) < 6:
+    # пароль опционален: пустой → вход только по nsec (как в NostrMail)
+    if password and len(password) < 6:
         return JSONResponse({"ok": False, "error": "password too short"}, status_code=400)
     if _account_by_pubkey(pubkey):
         return JSONResponse({"ok": False, "error": "already registered"}, status_code=409)

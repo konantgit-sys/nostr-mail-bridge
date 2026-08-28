@@ -6,45 +6,20 @@ Mail.STATE = Object.assign(Mail.STATE || {}, { mails: [], outbox: [], tab: "inbo
 /* ── события ─────────────────────────────────────────── */
 Mail.$("login-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  const mode = Mail.STATE.loginMode === "nsec" ? "nsec" : "pass";
-  let payload;
-  if (mode === "nsec") {
-    payload = { nsec: Mail.$("login-nsec").value.trim() };
-  } else {
-    payload = { address: Mail.$("login-addr").value.trim(), password: Mail.$("login-pass").value };
-  }
-  const r = await Mail.api("/api/login", { method: "POST", body: JSON.stringify(payload) });
+  const addr = Mail.$("login-addr").value.trim();
+  const r = await Mail.api("/api/login", { method: "POST", body: JSON.stringify({ address: addr, password: Mail.$("login-pass").value }) });
   if (r.ok) {
     Mail.$("login-pass").value = "";
-    Mail.$("login-nsec").value = "";
     Mail.$("login-error").hidden = true;
     if (r.token) { Mail.STATE.token = r.token; localStorage.setItem("nm_token", r.token); }
     await Mail.loadStatus();
     await Mail.loadMails();
   } else {
-    Mail.$("login-error").textContent = mode === "nsec"
-      ? (r.error === "нет ящика для этого ключа — сначала зарегистрируйся" ? "Для этого ключа нет ящика — зарегистрируйся" : "Неверный ключ")
-      : (r.error === "unknown address" ? "Ящик с таким адресом не найден" : "Неверный пароль");
+    Mail.$("login-error").textContent = r.error === "unknown address" ? "Ящик с таким адресом не найден" : "Неверный пароль";
     Mail.$("login-error").hidden = false;
-    (mode === "nsec" ? Mail.$("login-nsec") : Mail.$("login-pass")).select();
+    Mail.$("login-pass").select();
   }
 });
-
-/* переключатель способа входа: пароль / nsec */
-function setLoginMode(mode) {
-  Mail.STATE.loginMode = mode;
-  const nsecMode = mode === "nsec";
-  Mail.$("login-addr").hidden = nsecMode;
-  Mail.$("login-pass").hidden = nsecMode;
-  Mail.$("login-nsec").hidden = !nsecMode;
-  Mail.$("mode-pass").classList.toggle("active", !nsecMode);
-  Mail.$("mode-nsec").classList.toggle("active", nsecMode);
-  Mail.$("mode-pass").setAttribute("aria-selected", String(!nsecMode));
-  Mail.$("mode-nsec").setAttribute("aria-selected", String(nsecMode));
-  (nsecMode ? Mail.$("login-nsec") : Mail.$("login-addr")).focus();
-}
-Mail.$("mode-pass").addEventListener("click", () => setLoginMode("pass"));
-Mail.$("mode-nsec").addEventListener("click", () => setLoginMode("nsec"));
 
 Mail.$("register-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();

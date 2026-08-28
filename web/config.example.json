@@ -9,7 +9,7 @@
     "wss://offchain.pub",
     "wss://relay.primal.net"
   ],
-  "db": "/home/agent/data/sites/cryter-mail/inbox.db",
+  "db": "./inbox.db",
   "telegram_token": "",
   "telegram_chat_id": "-1003797670859",
   "lightning": "brashfoster340@walletofsatoshi.com",
