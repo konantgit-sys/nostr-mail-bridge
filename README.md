@@ -1,3 +1,12 @@
+> ⚠️ **ARCHIVED (2026-08-30)** — this repository is merged into
+> [snin-mail-nostr](https://github.com/konantgit-sys/snin-mail-nostr).
+> The protocol core (NIP-44/59, mail format kind:1301, IMAP bridge) now lives
+> there as the `mailbridge/` package. All development continues in the unified repo.
+>
+> **Read-only.** No further changes will be accepted here.
+
+---
+
 # Nostr Mail Bridge
 
 **Self-hosted, decentralized email on the Nostr protocol.**
